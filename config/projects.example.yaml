@@ -1,0 +1,30 @@
+# Example of an *external* project-override file.
+#
+# Point SCHOLARLOOP_PROJECT_OVERRIDES_PATH at a copy of this file (or pass
+# overrides_path= to load_policies) and set SCHOLARLOOP_PROJECT_NAME to pick a
+# block. Values here win over config/policies.yaml; keys not mentioned fall back.
+#
+#   SCHOLARLOOP_PROJECT_OVERRIDES_PATH=config/projects.example.yaml
+#   SCHOLARLOOP_PROJECT_NAME=thesis-chapter
+schema_version: 1
+
+# Optional: overrides applied to every project that uses this file.
+policies:
+  call_input_cap: 20000
+
+projects:
+  thesis-chapter:
+    q_min: 80
+    max_iterations: 16
+    plateau:
+      min_gain: 2.0
+      window: 4
+    model_tiers:
+      writer: strong
+
+  short-essay:
+    run_token_cap: 200000
+    iteration_token_cap: 40000
+    digest_max_tokens: 1200
+    # A typo here (e.g. `target_words_cap`) is a hard error at load time, not a
+    # silently ignored key: see tests/test_policies.py::test_unknown_key_is_rejected.

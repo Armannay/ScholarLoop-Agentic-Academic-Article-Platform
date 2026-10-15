@@ -1,0 +1,32 @@
+{
+  "$id": "https://scholarloop.local/schemas/v1/TokenUsage.json",
+  "additionalProperties": false,
+  "description": "Token accounting for one provider call.\n\nNamed ``in_`` in Python because ``in`` is a keyword, but the wire format is\nexactly ``{\"in\": n, \"out\": n, \"cached\": n}`` (``serialize_by_alias``), matching\nCONTRACTS v1 and the provider usage blocks.\n\nNon-overlapping by definition: ``in_`` counts prompt tokens billed at full rate,\n``cached`` counts prompt tokens served from the cache (billed cheaper), ``out``\ncounts completion tokens. ``total`` is therefore the true token volume and is\nwhat the budget caps measure; nothing is counted twice.",
+  "properties": {
+    "cached": {
+      "default": 0,
+      "description": "Prompt tokens served from cache.",
+      "minimum": 0,
+      "title": "Cached",
+      "type": "integer"
+    },
+    "in": {
+      "description": "Prompt tokens billed at full rate.",
+      "minimum": 0,
+      "title": "In",
+      "type": "integer"
+    },
+    "out": {
+      "description": "Completion tokens.",
+      "minimum": 0,
+      "title": "Out",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "in",
+    "out"
+  ],
+  "title": "TokenUsage",
+  "type": "object"
+}

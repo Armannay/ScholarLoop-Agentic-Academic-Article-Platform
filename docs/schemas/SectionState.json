@@ -1,0 +1,128 @@
+{
+  "$defs": {
+    "CitationRef": {
+      "additionalProperties": false,
+      "description": "A citation site in a section.\n\n``key`` is the rendered marker (``(Smith, 2020)`` for APA7, ``[1]`` for IEEE).\n``source_id`` is None only for a marker that has no card yet - exactly the\ncondition the both-ways citation gate reports as a high-severity issue.",
+      "properties": {
+        "key": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "None = unresolved citation site.",
+          "title": "Source Id"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "CitationRef",
+      "type": "object"
+    },
+    "SectionStatus": {
+      "description": "SectionState.status lifecycle: empty -> draft -> reviewed -> final.",
+      "enum": [
+        "empty",
+        "draft",
+        "reviewed",
+        "final"
+      ],
+      "title": "SectionStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/SectionState.json",
+  "additionalProperties": false,
+  "description": "Versioned state of one section. ``order`` is the only ordering authority.",
+  "properties": {
+    "citations": {
+      "items": {
+        "$ref": "#/$defs/CitationRef"
+      },
+      "maxItems": 500,
+      "title": "Citations",
+      "type": "array"
+    },
+    "hash": {
+      "default": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "description": "Hash of the exact text this state describes.",
+      "minLength": 1,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Hash",
+      "type": "string"
+    },
+    "id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "open_issues": {
+      "items": {
+        "maxLength": 40,
+        "minLength": 2,
+        "pattern": "^[A-Za-z][A-Za-z0-9._:-]{1,39}$",
+        "type": "string"
+      },
+      "maxItems": 200,
+      "title": "Open Issues",
+      "type": "array"
+    },
+    "order": {
+      "maximum": 999,
+      "minimum": 0,
+      "title": "Order",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/SectionStatus",
+      "default": "empty"
+    },
+    "title": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "version": {
+      "default": 0,
+      "description": "0 until the first patch is applied.",
+      "minimum": 0,
+      "title": "Version",
+      "type": "integer"
+    },
+    "words": {
+      "default": 0,
+      "maximum": 200000,
+      "minimum": 0,
+      "title": "Words",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "order"
+  ],
+  "title": "SectionState",
+  "type": "object"
+}

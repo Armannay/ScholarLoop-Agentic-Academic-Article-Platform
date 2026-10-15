@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "22"
+
+jobs:
+  backend:
+    name: backend (ruff + mypy --strict + pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: install (pinned)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: ruff check
+        run: ruff check backend
+
+      - name: ruff format --check
+        run: ruff format --check backend
+
+      - name: mypy --strict (backend/app)
+        run: mypy
+
+      - name: pytest (MockProvider only - no live API calls)
+        run: python -m pytest -q
+
+      - name: contract schemas are in sync with docs/schemas
+        run: python -m app.scripts.export_schemas --out docs/schemas --check
+
+      - name: no live-network imports in the test suite
+        run: |
+          if grep -rnE "https?://(api\.anthropic\.com|api\.openai\.com)" backend/tests backend/app/providers/mock.py; then
+            echo "::error::tests or MockProvider reference a live API host"
+            exit 1
+          fi
+
+  frontend:
+    name: frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  secrets:
+    name: no secrets in the tree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: scan for key-shaped strings
+        env:
+          # No install in this job: the module form needs the import root on the path,
+          # and the path form bootstraps itself (that is what the no-install case tests).
+          PYTHONPATH: backend
+        run: |
+          python -m app.scripts.secret_scan --root .
+          python backend/app/scripts/secret_scan.py --root .
+
+  docker:
+    name: docker compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config --quiet

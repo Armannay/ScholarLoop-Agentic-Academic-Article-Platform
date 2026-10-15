@@ -1,0 +1,80 @@
+# ScholarLoop local stack.
+#   docker compose up --build
+#   backend  -> http://localhost:8000/api/health
+#   frontend -> http://localhost:5173  (proxies /api to the backend)
+#
+# SQLite is the default; Postgres is behind the `postgres` profile and is the
+# supported production target (SQLAlchemy 2 + Alembic only - no vendor SQL).
+name: scholarloop
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: scholarloop/backend:dev
+    environment:
+      SCHOLARLOOP_ENV: docker
+      SCHOLARLOOP_LOG_LEVEL: INFO
+      SCHOLARLOOP_DATABASE_URL: sqlite+pysqlite:////data/scholarloop.sqlite3
+      # No secret is baked into the image: pass it from your shell at runtime.
+      SCHOLARLOOP_SECRET_KEY: ${SCHOLARLOOP_SECRET_KEY:-}
+      SCHOLARLOOP_CORS_ORIGINS: http://localhost:5173
+    volumes:
+      - ./backend:/repo/backend:ro
+      - ./config:/repo/config:ro
+      - ./rules:/repo/rules:ro
+      - scholarloop-data:/data
+    ports:
+      - "8000:8000"
+    command:
+      - uvicorn
+      - app.api.main:app
+      - --app-dir
+      - backend
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: scholarloop/frontend:dev
+    environment:
+      VITE_API_BASE_URL: ""
+      VITE_PROXY_TARGET: http://backend:8000
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/index.html:/app/index.html:ro
+      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: scholarloop
+      # Dev-only credential. Override in the shell; never commit a real one.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scholarloop}
+      POSTGRES_DB: scholarloop
+    volumes:
+      - scholarloop-pg:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scholarloop -d scholarloop"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  scholarloop-data:
+  scholarloop-pg:

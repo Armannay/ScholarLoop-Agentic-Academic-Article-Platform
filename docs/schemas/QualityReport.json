@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "IssueSeverity": {
+      "description": "Severity of a quality issue. ``high`` blocks completion.",
+      "enum": [
+        "low",
+        "med",
+        "high"
+      ],
+      "title": "IssueSeverity",
+      "type": "string"
+    },
+    "QualityIssue": {
+      "additionalProperties": false,
+      "description": "One defect. ``section_id`` is None for whole-article issues (word totals, style).",
+      "properties": {
+        "id": {
+          "maxLength": 40,
+          "minLength": 2,
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{1,39}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "section_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section Id"
+        },
+        "severity": {
+          "$ref": "#/$defs/IssueSeverity"
+        },
+        "text": {
+          "description": "What is wrong and what would fix it.",
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "severity",
+        "text"
+      ],
+      "title": "QualityIssue",
+      "type": "object"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/QualityReport.json",
+  "additionalProperties": false,
+  "description": "Gates, weighted scores and the resulting Q for one iteration.",
+  "properties": {
+    "Q": {
+      "description": "Weighted quality score 0..100.",
+      "maximum": 100,
+      "minimum": 0,
+      "title": "Q",
+      "type": "integer"
+    },
+    "gates": {
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "description": "All 8 hard gate names -> pass/fail.",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Gates",
+      "type": "object"
+    },
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/QualityIssue"
+      },
+      "maxItems": 200,
+      "title": "Issues",
+      "type": "array"
+    },
+    "iter": {
+      "maximum": 10000,
+      "minimum": 0,
+      "title": "Iter",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scores": {
+      "description": "Soft criteria 0..100; keys come from the rubric.",
+      "patternProperties": {
+        "^[a-z][a-z0-9_]{1,63}$": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "propertyNames": {
+        "maxLength": 64,
+        "minLength": 2
+      },
+      "title": "Scores",
+      "type": "object"
+    },
+    "verified_citation_ratio": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Verified Citation Ratio",
+      "type": "number"
+    }
+  },
+  "required": [
+    "iter",
+    "gates",
+    "Q",
+    "verified_citation_ratio"
+  ],
+  "title": "QualityReport",
+  "type": "object"
+}

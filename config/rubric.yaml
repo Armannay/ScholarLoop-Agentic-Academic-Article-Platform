@@ -1,0 +1,107 @@
+# ScholarLoop rubric - what "good enough to finish" means, as data.
+#
+# Loaded by app.core.rubric.load_rubric(). Two invariants are enforced by the loader
+# and by tests:
+#   * `gates` names the 8 hard gates exactly once each (a missing gate reads as a pass);
+#   * `criteria` weights are positive and sum to 100.
+# Section word ranges are guidance for the writer and the acceptance criteria for the
+# validator; the total-words gate is measured against Brief.target_words (+-15%).
+schema_version: 1
+
+article_types:
+  research:
+    abstract: {required: true, min_words: 150, max_words: 300}
+    sections:
+      - {id: introduction,   title: Introduction,       min_words: 600,  max_words: 900}
+      - {id: related-work,   title: Related Work,       min_words: 700,  max_words: 1100}
+      - {id: methodology,    title: Methodology,        min_words: 800,  max_words: 1300}
+      - {id: results,        title: Results,            min_words: 600,  max_words: 1000}
+      - {id: discussion,     title: Discussion,         min_words: 700,  max_words: 1100}
+      - {id: limitations,    title: Limitations,        min_words: 150,  max_words: 300}
+      - {id: conclusion,     title: Conclusion,         min_words: 200,  max_words: 400}
+      - {id: references,     title: References,         min_words: 0,    max_words: 0}
+
+  review:
+    abstract: {required: true, min_words: 150, max_words: 300}
+    sections:
+      - {id: introduction,   title: Introduction,       min_words: 500,  max_words: 800}
+      - {id: background,     title: Background,         min_words: 500,  max_words: 900}
+      - {id: search-strategy, title: Search Strategy,   min_words: 300,  max_words: 600}
+      - {id: thematic-synthesis, title: Thematic Synthesis, min_words: 1200, max_words: 2200}
+      - {id: discussion,     title: Discussion,         min_words: 600,  max_words: 1000}
+      - {id: limitations,    title: Limitations,        min_words: 150,  max_words: 300}
+      - {id: conclusion,     title: Conclusion,         min_words: 200,  max_words: 400}
+      - {id: references,     title: References,         min_words: 0,    max_words: 0}
+
+  position:
+    abstract: {required: true, min_words: 120, max_words: 250}
+    sections:
+      - {id: introduction,   title: Introduction,       min_words: 500,  max_words: 800}
+      - {id: background,     title: Background,         min_words: 400,  max_words: 800}
+      - {id: thesis,         title: Thesis Statement,   min_words: 200,  max_words: 400}
+      - {id: argument,       title: Argument,           min_words: 1000, max_words: 1800}
+      - {id: counterarguments, title: Counterarguments, min_words: 500,  max_words: 900}
+      - {id: conclusion,     title: Conclusion,         min_words: 200,  max_words: 400}
+      - {id: references,     title: References,         min_words: 0,    max_words: 0}
+
+  case_study:
+    abstract: {required: true, min_words: 150, max_words: 300}
+    sections:
+      - {id: introduction,   title: Introduction,       min_words: 400,  max_words: 700}
+      - {id: background,     title: Background,         min_words: 500,  max_words: 900}
+      - {id: case-description, title: Case Description, min_words: 900,  max_words: 1500}
+      - {id: analysis,       title: Analysis,           min_words: 800,  max_words: 1300}
+      - {id: lessons-learned, title: Lessons Learned,   min_words: 300,  max_words: 600}
+      - {id: conclusion,     title: Conclusion,         min_words: 200,  max_words: 400}
+      - {id: references,     title: References,         min_words: 0,    max_words: 0}
+
+# The 8 hard gates. Blocking is structural (`blocking: true` is the only allowed
+# value); if any gate fails, the run cannot be reported as complete.
+gates:
+  - name: required_sections_present
+    description: Every required section for the article type exists and is non-empty.
+  - name: abstract_within_range
+    description: The abstract exists and its word count is inside the rubric range.
+  - name: total_words_within_tolerance
+    description: Total body words are within +-15 percent of Brief.target_words.
+  - name: citations_resolve_both_ways
+    description: Every in-text citation has a reference entry and vice versa.
+  - name: references_verified_or_flagged
+    description: No reference is left unverified without an open, visible issue.
+  - name: no_placeholders
+    description: No TODO/TBD/lorem/"XXX" style filler anywhere in the article.
+  - name: citation_style_matches
+    description: In-text markers and the reference list follow Brief.citation_style.
+  - name: referenced_figures_and_tables_exist
+    description: Every figure/table referenced in the text exists, and vice versa.
+
+# Soft criteria. Weights sum to exactly 100; Q is their weighted average, so the
+# arithmetic is auditable and a reweighting is a config change, not a code change.
+criteria:
+  - name: contribution_and_gap
+    weight: 15
+    description: "A real gap is identified and the contribution answers it."
+  - name: coherence
+    weight: 15
+    description: "Sections build one argument; no contradictions and no drift."
+  - name: claims_supported
+    weight: 20
+    description: "Every non-obvious claim is supported by a verified source or provided data."
+  - name: methods_clarity
+    weight: 10
+    description: "Method, data and procedure are reproducible from the text."
+  - name: results_match_claims
+    weight: 10
+    description: "Stated results follow from the presented evidence, with no overreach."
+  - name: literature_coverage
+    weight: 10
+    description: "Coverage of the key literature, including work that disagrees."
+  - name: language
+    weight: 10
+    description: "Clear, idiomatic academic prose in Brief.language."
+  - name: consistency
+    weight: 5
+    description: "Terminology, notation, tense and units are used consistently."
+  - name: limitations_and_ethics
+    weight: 5
+    description: "Limitations are honest and ethics/data-use constraints are acknowledged."

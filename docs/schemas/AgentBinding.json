@@ -1,0 +1,90 @@
+{
+  "$defs": {
+    "BindingRole": {
+      "description": "AgentBinding.role: the five agents, plus the two non-authoring LLM roles.",
+      "enum": [
+        "planner",
+        "architect",
+        "researcher",
+        "writer",
+        "reviewer",
+        "validator",
+        "compactor"
+      ],
+      "title": "BindingRole",
+      "type": "string"
+    },
+    "BindingStrategy": {
+      "description": "How a binding picks among its accounts at call time.",
+      "enum": [
+        "dedicated",
+        "round_robin",
+        "failover"
+      ],
+      "title": "BindingStrategy",
+      "type": "string"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/AgentBinding.json",
+  "additionalProperties": false,
+  "description": "Per-role provider configuration.",
+  "properties": {
+    "account_ids": {
+      "description": "Ordered candidate accounts, resolved at call time.",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "title": "Account Ids",
+      "type": "array"
+    },
+    "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "max_input_tokens": {
+      "maximum": 2000000,
+      "minimum": 1000,
+      "title": "Max Input Tokens",
+      "type": "integer"
+    },
+    "max_output_tokens": {
+      "maximum": 64000,
+      "minimum": 64,
+      "title": "Max Output Tokens",
+      "type": "integer"
+    },
+    "model": {
+      "description": "Provider-specific model id.",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Model",
+      "type": "string"
+    },
+    "role": {
+      "$ref": "#/$defs/BindingRole"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "strategy": {
+      "$ref": "#/$defs/BindingStrategy",
+      "default": "failover"
+    }
+  },
+  "required": [
+    "role",
+    "account_ids",
+    "model",
+    "max_input_tokens",
+    "max_output_tokens"
+  ],
+  "title": "AgentBinding",
+  "type": "object"
+}

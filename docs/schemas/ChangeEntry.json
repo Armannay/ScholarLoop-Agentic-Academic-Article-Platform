@@ -1,0 +1,162 @@
+{
+  "$defs": {
+    "AgentRole": {
+      "description": "The five roles that may own a task in a Plan.",
+      "enum": [
+        "architect",
+        "researcher",
+        "writer",
+        "reviewer",
+        "validator"
+      ],
+      "title": "AgentRole",
+      "type": "string"
+    },
+    "ChangeStatus": {
+      "description": "ChangeEntry.status. ``needs_user_input`` is the HARD RULE 1 escape hatch.",
+      "enum": [
+        "ok",
+        "failed",
+        "skipped",
+        "needs_user_input"
+      ],
+      "title": "ChangeStatus",
+      "type": "string"
+    },
+    "TokenUsage": {
+      "additionalProperties": false,
+      "description": "Token accounting for one provider call.\n\nNamed ``in_`` in Python because ``in`` is a keyword, but the wire format is\nexactly ``{\"in\": n, \"out\": n, \"cached\": n}`` (``serialize_by_alias``), matching\nCONTRACTS v1 and the provider usage blocks.\n\nNon-overlapping by definition: ``in_`` counts prompt tokens billed at full rate,\n``cached`` counts prompt tokens served from the cache (billed cheaper), ``out``\ncounts completion tokens. ``total`` is therefore the true token volume and is\nwhat the budget caps measure; nothing is counted twice.",
+      "properties": {
+        "cached": {
+          "default": 0,
+          "description": "Prompt tokens served from cache.",
+          "minimum": 0,
+          "title": "Cached",
+          "type": "integer"
+        },
+        "in": {
+          "description": "Prompt tokens billed at full rate.",
+          "minimum": 0,
+          "title": "In",
+          "type": "integer"
+        },
+        "out": {
+          "description": "Completion tokens.",
+          "minimum": 0,
+          "title": "Out",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "in",
+        "out"
+      ],
+      "title": "TokenUsage",
+      "type": "object"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/ChangeEntry.json",
+  "additionalProperties": false,
+  "description": "One agent action, as recorded in the append-only ledger.",
+  "properties": {
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "issues_closed": {
+      "items": {
+        "maxLength": 40,
+        "minLength": 2,
+        "pattern": "^[A-Za-z][A-Za-z0-9._:-]{1,39}$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Issues Closed",
+      "type": "array"
+    },
+    "issues_opened": {
+      "items": {
+        "maxLength": 40,
+        "minLength": 2,
+        "pattern": "^[A-Za-z][A-Za-z0-9._:-]{1,39}$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Issues Opened",
+      "type": "array"
+    },
+    "iter": {
+      "description": "Loop iteration that produced this entry.",
+      "maximum": 10000,
+      "minimum": 0,
+      "title": "Iter",
+      "type": "integer"
+    },
+    "patch_ref": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/#-]{0,199}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Patch Ref"
+    },
+    "role": {
+      "$ref": "#/$defs/AgentRole",
+      "description": "The single role that produced the entry."
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/ChangeStatus",
+      "default": "ok"
+    },
+    "summary": {
+      "description": "<= 60 words; the only text the digest keeps.",
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "targets": {
+      "description": "Sections/entities touched.",
+      "items": {
+        "maxLength": 64,
+        "minLength": 1,
+        "pattern": "^(?:[a-z0-9][a-z0-9._-]{0,63}|[0-7][0-9A-HJKMNP-TV-Z]{25})$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Targets",
+      "type": "array"
+    },
+    "task_id": {
+      "description": "Task this work belongs to.",
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tokens": {
+      "$ref": "#/$defs/TokenUsage"
+    }
+  },
+  "required": [
+    "id",
+    "iter",
+    "task_id",
+    "role",
+    "summary",
+    "tokens"
+  ],
+  "title": "ChangeEntry",
+  "type": "object"
+}

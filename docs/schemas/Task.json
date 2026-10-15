@@ -1,0 +1,103 @@
+{
+  "$defs": {
+    "AgentRole": {
+      "description": "The five roles that may own a task in a Plan.",
+      "enum": [
+        "architect",
+        "researcher",
+        "writer",
+        "reviewer",
+        "validator"
+      ],
+      "title": "AgentRole",
+      "type": "string"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/Task.json",
+  "additionalProperties": false,
+  "description": "A todo item the Planner writes; executed by exactly one agent role.",
+  "properties": {
+    "acceptance": {
+      "description": "Checkable statements; the reviewer/validator grade against these.",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Acceptance",
+      "type": "array"
+    },
+    "depends_on": {
+      "description": "Task ids that must be 'ok' before this one runs.",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Depends On",
+      "type": "array"
+    },
+    "id": {
+      "description": "ULID, unique within the plan.",
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "instructions": {
+      "maxLength": 2400,
+      "minLength": 1,
+      "title": "Instructions",
+      "type": "string"
+    },
+    "role": {
+      "$ref": "#/$defs/AgentRole",
+      "description": "Exactly one of architect|researcher|writer|reviewer|validator. Mandatory distribution: a task without a role is invalid, and there is no null role."
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "section_ids": {
+      "items": {
+        "maxLength": 64,
+        "minLength": 1,
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+        "type": "string"
+      },
+      "title": "Section Ids",
+      "type": "array"
+    },
+    "source_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Source Ids",
+      "type": "array"
+    },
+    "title": {
+      "description": "Imperative, one line.",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "token_budget": {
+      "maximum": 2000000,
+      "minimum": 1,
+      "title": "Token Budget",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "role",
+    "instructions",
+    "acceptance",
+    "token_budget"
+  ],
+  "title": "Task",
+  "type": "object"
+}

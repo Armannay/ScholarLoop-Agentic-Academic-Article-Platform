@@ -1,0 +1,63 @@
+# ScholarLoop policies - the knobs the deterministic loop obeys.
+#
+# This file is loaded by app.core.policies.load_policies() and validated by the
+# Projects Pydantic model. Every key below is required to exist in the *file* only
+# because it documents the default; omission is allowed (the code default applies).
+#
+# Merge precedence (lowest -> highest):
+#   1. code defaults in app/core/policies.py
+#   2. this file's `policies:` block
+#   3. this file's `projects.<name>:` block
+#   4. SCHOLARLOOP_PROJECT_OVERRIDES_PATH file, `policies:` block
+#   5. that file's `projects.<name>:` block
+# Merging is recursive: `plateau: {min_gain: 2.0}` changes one key, keeps `window`.
+# Unknown keys anywhere are an error, never a silent no-op.
+schema_version: 1
+
+policies:
+  # --- budgets (HARD RULE 3: token-frugal by design) ---
+  run_token_cap: 800000        # whole run, in+out tokens, every provider call
+  iteration_token_cap: 120000  # one loop iteration across all agents
+  call_input_cap: 24000        # prompt ceiling for any single provider call
+  max_iterations: 12           # hard stop regardless of quality
+  max_parallel: 3              # agents executing concurrently
+
+  # --- planner digest (claude.md) ---
+  digest_max_tokens: 2000      # the digest is bounded; this is the ceiling
+  recent_window: 3             # ledger entries kept verbatim before compaction
+  compact_trigger: 0.8         # compact at 80% of the digest ceiling
+
+  # --- quality thresholds ---
+  q_min: 70                    # Q below this is never "done"
+
+  # --- loop-erosion detectors ---
+  plateau:
+    window: 3                  # iterations to look back
+    min_gain: 1.0              # Q points that count as progress
+  regression:
+    delta: 3                   # Q drop that counts as regression
+    window: 2                  # iterations over which the drop is measured
+  oscillation:
+    window: 4                  # alternating Q up/down over this many iterations
+  diminishing:
+    min_gain_per_10k: 0.2      # Q points gained per 10k tokens
+    window: 2
+
+  # --- error and churn guards ---
+  issue_churn: 0.3             # opened/closed ratio above which the loop is churning
+  error_streak: 3              # consecutive provider failures tolerated
+
+  # --- model tiers per role (strong | mid | cheap) ---
+  # Resolved to a concrete model id by the role's AgentBinding, never here.
+  model_tiers:
+    planner: strong
+    architect: mid
+    researcher: mid
+    writer: mid
+    reviewer: strong
+    validator: cheap
+    compactor: cheap
+
+# Named per-project overrides. Empty by default; see config/projects.example.yaml
+# for the external-overrides file format and a worked example.
+projects: {}

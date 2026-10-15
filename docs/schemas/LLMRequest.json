@@ -1,0 +1,114 @@
+{
+  "$defs": {
+    "LLMMessage": {
+      "additionalProperties": false,
+      "description": "One conversational turn. System text never appears here.",
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/MessageRole"
+        },
+        "text": {
+          "maxLength": 500000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "text"
+      ],
+      "title": "LLMMessage",
+      "type": "object"
+    },
+    "MessageRole": {
+      "description": "Roles permitted in LLMRequest.messages. System text lives in system_blocks.",
+      "enum": [
+        "user",
+        "assistant"
+      ],
+      "title": "MessageRole",
+      "type": "string"
+    },
+    "SystemBlock": {
+      "additionalProperties": false,
+      "description": "A system prompt block. Split into blocks so the stable prefix can be cached.",
+      "properties": {
+        "cache": {
+          "default": false,
+          "description": "Hint: keep this block in the prompt cache.",
+          "title": "Cache",
+          "type": "boolean"
+        },
+        "text": {
+          "maxLength": 200000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "SystemBlock",
+      "type": "object"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/LLMRequest.json",
+  "additionalProperties": false,
+  "description": "One provider call. Never carries an API key - the provider is already bound.",
+  "properties": {
+    "json_schema": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "propertyNames": {
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "When set, the provider must return JSON conforming to this schema.",
+      "title": "Json Schema"
+    },
+    "max_output_tokens": {
+      "maximum": 64000,
+      "minimum": 1,
+      "title": "Max Output Tokens",
+      "type": "integer"
+    },
+    "messages": {
+      "items": {
+        "$ref": "#/$defs/LLMMessage"
+      },
+      "maxItems": 200,
+      "minItems": 1,
+      "title": "Messages",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "system_blocks": {
+      "items": {
+        "$ref": "#/$defs/SystemBlock"
+      },
+      "maxItems": 16,
+      "title": "System Blocks",
+      "type": "array"
+    }
+  },
+  "required": [
+    "messages",
+    "max_output_tokens"
+  ],
+  "title": "LLMRequest",
+  "type": "object"
+}

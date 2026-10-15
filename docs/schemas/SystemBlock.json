@@ -1,0 +1,24 @@
+{
+  "$id": "https://scholarloop.local/schemas/v1/SystemBlock.json",
+  "additionalProperties": false,
+  "description": "A system prompt block. Split into blocks so the stable prefix can be cached.",
+  "properties": {
+    "cache": {
+      "default": false,
+      "description": "Hint: keep this block in the prompt cache.",
+      "title": "Cache",
+      "type": "boolean"
+    },
+    "text": {
+      "maxLength": 200000,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "text"
+  ],
+  "title": "SystemBlock",
+  "type": "object"
+}

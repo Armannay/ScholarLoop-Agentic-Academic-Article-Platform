@@ -1,0 +1,119 @@
+{
+  "$defs": {
+    "AccountProvider": {
+      "description": "Account.provider. Only ``mock`` is implemented in this step.",
+      "enum": [
+        "anthropic",
+        "openai_compatible",
+        "mock"
+      ],
+      "title": "AccountProvider",
+      "type": "string"
+    },
+    "AccountStatus": {
+      "description": "Account.status: resolved at call time, never cached in a binding.",
+      "enum": [
+        "active",
+        "degraded",
+        "disabled"
+      ],
+      "title": "AccountStatus",
+      "type": "string"
+    },
+    "MonthlyBudget": {
+      "additionalProperties": false,
+      "description": "Optional spend ceiling per account. ``None`` means \"inherit the run budget\".",
+      "properties": {
+        "tokens": {
+          "anyOf": [
+            {
+              "maximum": 1000000000,
+              "minimum": 1000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens"
+        },
+        "usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1000000.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Usd"
+        }
+      },
+      "title": "MonthlyBudget",
+      "type": "object"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/AccountPublic.json",
+  "additionalProperties": false,
+  "description": "An account with the key replaced by a short, non-reversible fingerprint.",
+  "properties": {
+    "base_url": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Base Url"
+    },
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "key_fingerprint": {
+      "description": "First 12 hex chars of sha256(ciphertext); proves 'the key changed'.",
+      "maxLength": 12,
+      "minLength": 12,
+      "title": "Key Fingerprint",
+      "type": "string"
+    },
+    "label": {
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+    },
+    "monthly_budget": {
+      "$ref": "#/$defs/MonthlyBudget"
+    },
+    "owner_id": {
+      "minLength": 1,
+      "title": "Owner Id",
+      "type": "string"
+    },
+    "provider": {
+      "$ref": "#/$defs/AccountProvider"
+    },
+    "status": {
+      "$ref": "#/$defs/AccountStatus"
+    }
+  },
+  "required": [
+    "id",
+    "owner_id",
+    "provider",
+    "label",
+    "status",
+    "key_fingerprint"
+  ],
+  "title": "AccountPublic",
+  "type": "object"
+}

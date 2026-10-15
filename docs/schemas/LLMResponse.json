@@ -1,0 +1,76 @@
+{
+  "$defs": {
+    "TokenUsage": {
+      "additionalProperties": false,
+      "description": "Token accounting for one provider call.\n\nNamed ``in_`` in Python because ``in`` is a keyword, but the wire format is\nexactly ``{\"in\": n, \"out\": n, \"cached\": n}`` (``serialize_by_alias``), matching\nCONTRACTS v1 and the provider usage blocks.\n\nNon-overlapping by definition: ``in_`` counts prompt tokens billed at full rate,\n``cached`` counts prompt tokens served from the cache (billed cheaper), ``out``\ncounts completion tokens. ``total`` is therefore the true token volume and is\nwhat the budget caps measure; nothing is counted twice.",
+      "properties": {
+        "cached": {
+          "default": 0,
+          "description": "Prompt tokens served from cache.",
+          "minimum": 0,
+          "title": "Cached",
+          "type": "integer"
+        },
+        "in": {
+          "description": "Prompt tokens billed at full rate.",
+          "minimum": 0,
+          "title": "In",
+          "type": "integer"
+        },
+        "out": {
+          "description": "Completion tokens.",
+          "minimum": 0,
+          "title": "Out",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "in",
+        "out"
+      ],
+      "title": "TokenUsage",
+      "type": "object"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/LLMResponse.json",
+  "additionalProperties": false,
+  "description": "One provider answer, with usage so the governor can bill it.",
+  "properties": {
+    "latency_ms": {
+      "maximum": 3600000,
+      "minimum": 0,
+      "title": "Latency Ms",
+      "type": "integer"
+    },
+    "model": {
+      "description": "Model the provider actually used.",
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Model",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "text": {
+      "description": "Raw model text; structured replies are still JSON *text*.",
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    },
+    "usage": {
+      "$ref": "#/$defs/TokenUsage"
+    }
+  },
+  "required": [
+    "text",
+    "usage",
+    "model",
+    "latency_ms"
+  ],
+  "title": "LLMResponse",
+  "type": "object"
+}

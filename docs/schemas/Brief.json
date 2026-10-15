@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "ArticleType": {
+      "description": "Brief.article_type: selects required sections in the rubric.",
+      "enum": [
+        "research",
+        "review",
+        "position",
+        "case_study"
+      ],
+      "title": "ArticleType",
+      "type": "string"
+    },
+    "CitationStyle": {
+      "description": "Brief.citation_style: drives the citation-style hard gate.",
+      "enum": [
+        "APA7",
+        "IEEE",
+        "Harvard",
+        "Vancouver"
+      ],
+      "title": "CitationStyle",
+      "type": "string"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/Brief.json",
+  "additionalProperties": false,
+  "description": "What the user asked for, before any agent has run.\n\n``provided_data`` holds user-supplied data or quotes verbatim: agents may cite\nit, and the validator treats those citations as ``verified`` by construction.\nAn empty ``provided_data`` means the researcher must find real sources or\nreturn ``needs_user_input`` - it never means \"invent one\".",
+  "properties": {
+    "article_type": {
+      "$ref": "#/$defs/ArticleType",
+      "description": "Selects the rubric's required sections."
+    },
+    "audience": {
+      "description": "Who reads this, e.g. 'CS undergraduates'.",
+      "minLength": 1,
+      "title": "Audience",
+      "type": "string"
+    },
+    "citation_style": {
+      "$ref": "#/$defs/CitationStyle"
+    },
+    "language": {
+      "description": "BCP-47 tag, e.g. 'en' or 'en-GB'.",
+      "maxLength": 35,
+      "minLength": 1,
+      "title": "Language",
+      "type": "string"
+    },
+    "must_avoid": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Must Avoid",
+      "type": "array"
+    },
+    "must_include": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Must Include",
+      "type": "array"
+    },
+    "provided_data": {
+      "description": "Verbatim user data/quotes. Empty is allowed; fabricated sources are not.",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Provided Data",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "target_words": {
+      "description": "Target total length; the total-words gate allows +-15 percent.",
+      "maximum": 30000,
+      "minimum": 300,
+      "title": "Target Words",
+      "type": "integer"
+    },
+    "topic": {
+      "description": "One-sentence statement of the article's subject.",
+      "minLength": 1,
+      "title": "Topic",
+      "type": "string"
+    }
+  },
+  "required": [
+    "topic",
+    "article_type",
+    "audience",
+    "language",
+    "target_words",
+    "citation_style"
+  ],
+  "title": "Brief",
+  "type": "object"
+}
