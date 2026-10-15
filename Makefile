@@ -6,7 +6,7 @@ PIP   := $(VENV)/bin/pip
 
 .DEFAULT_GOAL := help
 
-.PHONY: help venv install lint format type test check schemas schemas-check run backend frontend-install frontend-build frontend-dev dev up down clean
+.PHONY: help venv install lint format type test check schemas schemas-check skills-lint run backend frontend-install frontend-build frontend-dev dev up down clean
 
 help: ## show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -41,6 +41,9 @@ schemas: ## export contracts JSON Schemas to docs/schemas/
 
 schemas-check: ## fail if docs/schemas is out of date with the contracts
 	$(PY) -m app.scripts.export_schemas --out docs/schemas --check
+
+skills-lint: ## fail if any skill exceeds its declared token budget
+	$(PY) -m app.scripts.lint_skills --root skills
 
 run: ## run the API on :8000 (MockProvider only)
 	$(VENV)/bin/uvicorn app.api.main:app --app-dir backend --host 0.0.0.0 --port 8000
