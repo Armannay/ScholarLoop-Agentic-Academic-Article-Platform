@@ -82,7 +82,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: scan for key-shaped strings
-        run: python backend/app/scripts/secret_scan.py --root .
+        env:
+          # No install in this job: the module form needs the import root on the path,
+          # and the path form bootstraps itself (that is what the no-install case tests).
+          PYTHONPATH: backend
+        run: |
+          python -m app.scripts.secret_scan --root .
+          python backend/app/scripts/secret_scan.py --root .
 
   docker:
     name: docker compose config

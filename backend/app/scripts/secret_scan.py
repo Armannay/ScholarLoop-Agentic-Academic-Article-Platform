@@ -4,7 +4,10 @@ The detection rules live in :mod:`app.core.redaction`, which is also what the lo
 filter and the API error path use - so the thing that fails CI and the thing that
 redacts logs can never drift apart.
 
-Usage:
+Runnable both as a module and as a plain script path (CI and humans disagree about
+which is nicer), hence the explicit ``sys.path`` bootstrap below:
+
+    python -m app.scripts.secret_scan --root .
     python backend/app/scripts/secret_scan.py --root .
 """
 
@@ -13,6 +16,13 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+
+# Allow `python backend/app/scripts/secret_scan.py` from a fresh checkout: this file
+# is backend/app/scripts/x.py, so the import root is parents[2] == backend/.
+if __package__ in (None, ""):
+    _BACKEND_ROOT = Path(__file__).resolve().parents[2]
+    if str(_BACKEND_ROOT) not in sys.path:
+        sys.path.insert(0, str(_BACKEND_ROOT))
 
 from app.core.redaction import find_secrets
 

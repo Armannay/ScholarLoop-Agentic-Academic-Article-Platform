@@ -6,6 +6,9 @@ a doc, a workflow file or a config by any later step fails here - not in product
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -67,6 +70,41 @@ def test_cli_exit_codes(tmp_path: Path, repo_root: Path) -> None:
 
     (tmp_path / "bad.txt").write_text("token sk-ant-" + "v" * 30 + "\n", encoding="utf-8")
     assert main(["--root", str(tmp_path)]) == 1
+
+
+@pytest.mark.parametrize("module_form", [False, True])
+def test_scan_runs_from_a_fresh_checkout_with_no_install(
+    repo_root: Path, module_form: bool
+) -> None:
+    """The scanner must work the way CI invokes it, in a checkout that is not installed.
+
+    This is a regression test: the CI job runs the script before (and instead of) an
+    editable install, so a bare `from app.core...` import in the script made the job
+    fail while it passed locally, where `pip install -e .` had put `app` on the path.
+    """
+    backend = repo_root / "backend"
+    command = (
+        [sys.executable, "-m", "app.scripts.secret_scan", "--root", "."]
+        if module_form
+        else [sys.executable, "backend/app/scripts/secret_scan.py", "--root", "."]
+    )
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(backend) if module_form else "",
+        # A checkout has no virtualenv: prove nothing from the dev env is required.
+        "PYTHONNOUSERSITE": "1",
+    }
+
+    result = subprocess.run(  # noqa: S603 - fixed argv, no shell
+        command,
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ModuleNotFoundError" not in result.stderr
 
 
 def test_no_env_file_is_committed(repo_root: Path) -> None:
