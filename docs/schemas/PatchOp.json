@@ -1,0 +1,85 @@
+{
+  "$defs": {
+    "PatchOpType": {
+      "description": "Patch operation verbs. Payload rules live in contracts.patch.",
+      "enum": [
+        "replace_text",
+        "insert_after",
+        "delete_text",
+        "replace_section"
+      ],
+      "title": "PatchOpType",
+      "type": "string"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/PatchOp.json",
+  "additionalProperties": false,
+  "description": "A single edit. ``old`` is matched literally, so no regex escaping is needed.",
+  "properties": {
+    "anchor": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Literal text after which to insert.",
+      "title": "Anchor"
+    },
+    "new": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Replacement text.",
+      "title": "New"
+    },
+    "old": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Literal text to replace or delete.",
+      "title": "Old"
+    },
+    "op": {
+      "$ref": "#/$defs/PatchOpType"
+    },
+    "text": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Text to insert or the new section body.",
+      "title": "Text"
+    }
+  },
+  "required": [
+    "op"
+  ],
+  "title": "PatchOp",
+  "type": "object"
+}

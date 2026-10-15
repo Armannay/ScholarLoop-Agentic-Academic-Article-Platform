@@ -1,0 +1,708 @@
+{
+  "$defs": {
+    "AgentRole": {
+      "description": "The five roles that may own a task in a Plan.",
+      "enum": [
+        "architect",
+        "researcher",
+        "writer",
+        "reviewer",
+        "validator"
+      ],
+      "title": "AgentRole",
+      "type": "string"
+    },
+    "ChangeEntry": {
+      "additionalProperties": false,
+      "description": "One agent action, as recorded in the append-only ledger.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "issues_closed": {
+          "items": {
+            "maxLength": 40,
+            "minLength": 2,
+            "pattern": "^[A-Za-z][A-Za-z0-9._:-]{1,39}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Issues Closed",
+          "type": "array"
+        },
+        "issues_opened": {
+          "items": {
+            "maxLength": 40,
+            "minLength": 2,
+            "pattern": "^[A-Za-z][A-Za-z0-9._:-]{1,39}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Issues Opened",
+          "type": "array"
+        },
+        "iter": {
+          "description": "Loop iteration that produced this entry.",
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Iter",
+          "type": "integer"
+        },
+        "patch_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/#-]{0,199}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Patch Ref"
+        },
+        "role": {
+          "$ref": "#/$defs/AgentRole",
+          "description": "The single role that produced the entry."
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/ChangeStatus",
+          "default": "ok"
+        },
+        "summary": {
+          "description": "<= 60 words; the only text the digest keeps.",
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "targets": {
+          "description": "Sections/entities touched.",
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^(?:[a-z0-9][a-z0-9._-]{0,63}|[0-7][0-9A-HJKMNP-TV-Z]{25})$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Targets",
+          "type": "array"
+        },
+        "task_id": {
+          "description": "Task this work belongs to.",
+          "minLength": 1,
+          "title": "Task Id",
+          "type": "string"
+        },
+        "tokens": {
+          "$ref": "#/$defs/TokenUsage"
+        }
+      },
+      "required": [
+        "id",
+        "iter",
+        "task_id",
+        "role",
+        "summary",
+        "tokens"
+      ],
+      "title": "ChangeEntry",
+      "type": "object"
+    },
+    "ChangeStatus": {
+      "description": "ChangeEntry.status. ``needs_user_input`` is the HARD RULE 1 escape hatch.",
+      "enum": [
+        "ok",
+        "failed",
+        "skipped",
+        "needs_user_input"
+      ],
+      "title": "ChangeStatus",
+      "type": "string"
+    },
+    "CitationRef": {
+      "additionalProperties": false,
+      "description": "A citation site in a section.\n\n``key`` is the rendered marker (``(Smith, 2020)`` for APA7, ``[1]`` for IEEE).\n``source_id`` is None only for a marker that has no card yet - exactly the\ncondition the both-ways citation gate reports as a high-severity issue.",
+      "properties": {
+        "key": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "None = unresolved citation site.",
+          "title": "Source Id"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "CitationRef",
+      "type": "object"
+    },
+    "IssueSeverity": {
+      "description": "Severity of a quality issue. ``high`` blocks completion.",
+      "enum": [
+        "low",
+        "med",
+        "high"
+      ],
+      "title": "IssueSeverity",
+      "type": "string"
+    },
+    "Patch": {
+      "additionalProperties": false,
+      "description": "An ordered list of ops against one section. Empty ``ops`` is invalid.",
+      "properties": {
+        "base_version": {
+          "description": "Section version this patch was authored against (0 = empty section).",
+          "minimum": 0,
+          "title": "Base Version",
+          "type": "integer"
+        },
+        "ops": {
+          "items": {
+            "$ref": "#/$defs/PatchOp"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Ops",
+          "type": "array"
+        },
+        "patch_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional id so a ChangeEntry can point at this patch (patch_ref).",
+          "title": "Patch Id"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "section_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+          "title": "Section Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "section_id",
+        "base_version",
+        "ops"
+      ],
+      "title": "Patch",
+      "type": "object"
+    },
+    "PatchOp": {
+      "additionalProperties": false,
+      "description": "A single edit. ``old`` is matched literally, so no regex escaping is needed.",
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Literal text after which to insert.",
+          "title": "Anchor"
+        },
+        "new": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Replacement text.",
+          "title": "New"
+        },
+        "old": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Literal text to replace or delete.",
+          "title": "Old"
+        },
+        "op": {
+          "$ref": "#/$defs/PatchOpType"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Text to insert or the new section body.",
+          "title": "Text"
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "title": "PatchOp",
+      "type": "object"
+    },
+    "PatchOpType": {
+      "description": "Patch operation verbs. Payload rules live in contracts.patch.",
+      "enum": [
+        "replace_text",
+        "insert_after",
+        "delete_text",
+        "replace_section"
+      ],
+      "title": "PatchOpType",
+      "type": "string"
+    },
+    "QualityIssue": {
+      "additionalProperties": false,
+      "description": "One defect. ``section_id`` is None for whole-article issues (word totals, style).",
+      "properties": {
+        "id": {
+          "maxLength": 40,
+          "minLength": 2,
+          "pattern": "^[A-Za-z][A-Za-z0-9._:-]{1,39}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "section_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section Id"
+        },
+        "severity": {
+          "$ref": "#/$defs/IssueSeverity"
+        },
+        "text": {
+          "description": "What is wrong and what would fix it.",
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "severity",
+        "text"
+      ],
+      "title": "QualityIssue",
+      "type": "object"
+    },
+    "QualityReport": {
+      "additionalProperties": false,
+      "description": "Gates, weighted scores and the resulting Q for one iteration.",
+      "properties": {
+        "Q": {
+          "description": "Weighted quality score 0..100.",
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Q",
+          "type": "integer"
+        },
+        "gates": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "description": "All 8 hard gate names -> pass/fail.",
+          "propertyNames": {
+            "minLength": 1
+          },
+          "title": "Gates",
+          "type": "object"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/$defs/QualityIssue"
+          },
+          "maxItems": 200,
+          "title": "Issues",
+          "type": "array"
+        },
+        "iter": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Iter",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scores": {
+          "description": "Soft criteria 0..100; keys come from the rubric.",
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{1,63}$": {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 64,
+            "minLength": 2
+          },
+          "title": "Scores",
+          "type": "object"
+        },
+        "verified_citation_ratio": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Verified Citation Ratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "iter",
+        "gates",
+        "Q",
+        "verified_citation_ratio"
+      ],
+      "title": "QualityReport",
+      "type": "object"
+    },
+    "SectionState": {
+      "additionalProperties": false,
+      "description": "Versioned state of one section. ``order`` is the only ordering authority.",
+      "properties": {
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/CitationRef"
+          },
+          "maxItems": 500,
+          "title": "Citations",
+          "type": "array"
+        },
+        "hash": {
+          "default": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "description": "Hash of the exact text this state describes.",
+          "minLength": 1,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Hash",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "open_issues": {
+          "items": {
+            "maxLength": 40,
+            "minLength": 2,
+            "pattern": "^[A-Za-z][A-Za-z0-9._:-]{1,39}$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Open Issues",
+          "type": "array"
+        },
+        "order": {
+          "maximum": 999,
+          "minimum": 0,
+          "title": "Order",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/SectionStatus",
+          "default": "empty"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "version": {
+          "default": 0,
+          "description": "0 until the first patch is applied.",
+          "minimum": 0,
+          "title": "Version",
+          "type": "integer"
+        },
+        "words": {
+          "default": 0,
+          "maximum": 200000,
+          "minimum": 0,
+          "title": "Words",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "order"
+      ],
+      "title": "SectionState",
+      "type": "object"
+    },
+    "SectionStatus": {
+      "description": "SectionState.status lifecycle: empty -> draft -> reviewed -> final.",
+      "enum": [
+        "empty",
+        "draft",
+        "reviewed",
+        "final"
+      ],
+      "title": "SectionStatus",
+      "type": "string"
+    },
+    "SourceCard": {
+      "additionalProperties": false,
+      "description": "One reference, with enough metadata to verify it and too little room to pad.\n\n``snippet`` is the only free-text field. ``url`` must be an absolute http(s)\nURL, and ``doi`` is normalised on validation so deduplication is reliable.",
+      "properties": {
+        "authors": {
+          "description": "Family-name-first, as printed; [] only if unattributed.",
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Authors",
+          "type": "array"
+        },
+        "doi": {
+          "anyOf": [
+            {
+              "maxLength": 255,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Doi"
+        },
+        "id": {
+          "description": "ULID of this card; referenced by tasks' source_ids.",
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "snippet": {
+          "description": "Quoted or paraphrased support, <= 60 words.",
+          "minLength": 1,
+          "title": "Snippet",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "venue": {
+          "description": "Journal, conference or publisher.",
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Venue",
+          "type": "string"
+        },
+        "verification": {
+          "$ref": "#/$defs/VerificationStatus",
+          "default": "unknown"
+        },
+        "year": {
+          "maximum": 2200,
+          "minimum": 1400,
+          "title": "Year",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "year",
+        "venue",
+        "snippet"
+      ],
+      "title": "SourceCard",
+      "type": "object"
+    },
+    "TokenUsage": {
+      "additionalProperties": false,
+      "description": "Token accounting for one provider call.\n\nNamed ``in_`` in Python because ``in`` is a keyword, but the wire format is\nexactly ``{\"in\": n, \"out\": n, \"cached\": n}`` (``serialize_by_alias``), matching\nCONTRACTS v1 and the provider usage blocks.\n\nNon-overlapping by definition: ``in_`` counts prompt tokens billed at full rate,\n``cached`` counts prompt tokens served from the cache (billed cheaper), ``out``\ncounts completion tokens. ``total`` is therefore the true token volume and is\nwhat the budget caps measure; nothing is counted twice.",
+      "properties": {
+        "cached": {
+          "default": 0,
+          "description": "Prompt tokens served from cache.",
+          "minimum": 0,
+          "title": "Cached",
+          "type": "integer"
+        },
+        "in": {
+          "description": "Prompt tokens billed at full rate.",
+          "minimum": 0,
+          "title": "In",
+          "type": "integer"
+        },
+        "out": {
+          "description": "Completion tokens.",
+          "minimum": 0,
+          "title": "Out",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "in",
+        "out"
+      ],
+      "title": "TokenUsage",
+      "type": "object"
+    },
+    "VerificationStatus": {
+      "description": "SourceCard.verification. ``unknown`` is never silently upgraded.",
+      "enum": [
+        "unknown",
+        "verified",
+        "mismatch"
+      ],
+      "title": "VerificationStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/AgentResult.json",
+  "additionalProperties": false,
+  "description": "The complete return value of one agent task execution.",
+  "properties": {
+    "entry": {
+      "$ref": "#/$defs/ChangeEntry"
+    },
+    "patches": {
+      "items": {
+        "$ref": "#/$defs/Patch"
+      },
+      "title": "Patches",
+      "type": "array"
+    },
+    "report": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/QualityReport"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/SectionState"
+      },
+      "title": "Sections",
+      "type": "array"
+    },
+    "source_cards": {
+      "items": {
+        "$ref": "#/$defs/SourceCard"
+      },
+      "title": "Source Cards",
+      "type": "array"
+    }
+  },
+  "required": [
+    "entry"
+  ],
+  "title": "AgentResult",
+  "type": "object"
+}

@@ -1,0 +1,33 @@
+{
+  "$defs": {
+    "MessageRole": {
+      "description": "Roles permitted in LLMRequest.messages. System text lives in system_blocks.",
+      "enum": [
+        "user",
+        "assistant"
+      ],
+      "title": "MessageRole",
+      "type": "string"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/LLMMessage.json",
+  "additionalProperties": false,
+  "description": "One conversational turn. System text never appears here.",
+  "properties": {
+    "role": {
+      "$ref": "#/$defs/MessageRole"
+    },
+    "text": {
+      "maxLength": 500000,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "role",
+    "text"
+  ],
+  "title": "LLMMessage",
+  "type": "object"
+}

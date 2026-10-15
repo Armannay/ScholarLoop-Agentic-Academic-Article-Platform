@@ -1,0 +1,43 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Node / Vite ---
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# --- Secrets: never commit an env file or a keyring ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+*.keyring.json
+scholarloop.keyring.json
+
+# --- Local runtime state (SQLite dev DB, artifacts, logs) ---
+*.sqlite
+*.sqlite3
+*.db
+artifacts/
+runs/
+logs/
+*.log
+
+# --- Editors / OS ---
+.idea/
+.vscode/
+.DS_Store

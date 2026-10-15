@@ -1,0 +1,26 @@
+{
+  "name": "scholarloop-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "ScholarLoop status console: health, effective policies, rubric gates and contract schemas.",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run lint && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.0",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@vitejs/plugin-react": "5.1.0",
+    "typescript": "5.9.3",
+    "vite": "7.2.2"
+  }
+}

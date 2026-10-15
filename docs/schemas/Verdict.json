@@ -1,0 +1,57 @@
+{
+  "$defs": {
+    "Recommendation": {
+      "description": "Verdict.recommendation: the Planner's opinion on stopping.",
+      "enum": [
+        "finish",
+        "continue"
+      ],
+      "title": "Recommendation",
+      "type": "string"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/Verdict.json",
+  "additionalProperties": false,
+  "description": "``meets_minimum`` is the Planner's own bar; the rubric's gates are the real one.",
+  "properties": {
+    "meets_minimum": {
+      "title": "Meets Minimum",
+      "type": "boolean"
+    },
+    "missing": {
+      "description": "What still has to be true.",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 40,
+      "title": "Missing",
+      "type": "array"
+    },
+    "recommendation": {
+      "$ref": "#/$defs/Recommendation"
+    },
+    "risks": {
+      "description": "What could go wrong if we finish now.",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 40,
+      "title": "Risks",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "meets_minimum",
+    "recommendation"
+  ],
+  "title": "Verdict",
+  "type": "object"
+}

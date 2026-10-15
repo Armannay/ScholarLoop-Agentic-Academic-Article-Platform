@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1
+# ScholarLoop backend image. Dev-oriented: source is mounted by compose.
+FROM python:3.11-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /repo
+
+# Dependency layer first so code edits do not invalidate the wheel cache.
+COPY pyproject.toml README.md ./
+COPY backend ./backend
+RUN pip install --upgrade pip && pip install -e ".[dev]"
+
+# Config, rules and AI-facing prompts are runtime data, not code.
+COPY config ./config
+COPY rules ./rules
+COPY docs/schemas ./docs/schemas
+
+# Run as a non-root user; the SQLite dev DB lives in a writable data dir.
+RUN useradd --create-home --uid 10001 scholarloop \
+    && mkdir -p /data \
+    && chown -R scholarloop:scholarloop /data /repo
+USER scholarloop
+
+ENV SCHOLARLOOP_DATABASE_URL=sqlite+pysqlite:////data/scholarloop.sqlite3 \
+    SCHOLARLOOP_API_HOST=0.0.0.0 \
+    SCHOLARLOOP_API_PORT=8000
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2).status == 200 else 1)"
+
+CMD ["uvicorn", "app.api.main:app", "--app-dir", "backend", "--host", "0.0.0.0", "--port", "8000"]

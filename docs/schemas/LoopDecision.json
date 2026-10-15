@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "LoopAction": {
+      "description": "LoopDecision.action: the only values the loop controller may emit.",
+      "enum": [
+        "CONTINUE",
+        "OFFER_FINISH",
+        "ASK_USER",
+        "STOP_EROSION",
+        "STOP_BUDGET",
+        "STOP_ERRORS",
+        "STOP_USER"
+      ],
+      "title": "LoopAction",
+      "type": "string"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/LoopDecision.json",
+  "additionalProperties": false,
+  "description": "One decision by the controller: what to do next, and why.",
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/LoopAction"
+    },
+    "evidence": {
+      "additionalProperties": true,
+      "description": "Numbers behind the call: Q history, tokens spent, failed gates.",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Evidence",
+      "type": "object"
+    },
+    "iter": {
+      "maximum": 10000,
+      "minimum": 0,
+      "title": "Iter",
+      "type": "integer"
+    },
+    "reasons": {
+      "description": "Stable snake_case codes, never free prose (e.g. 'plateau_detected').",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Reasons",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "iter",
+    "action",
+    "reasons"
+  ],
+  "title": "LoopDecision",
+  "type": "object"
+}

@@ -1,0 +1,37 @@
+{
+  "$id": "https://scholarloop.local/schemas/v1/MonthlyBudget.json",
+  "additionalProperties": false,
+  "description": "Optional spend ceiling per account. ``None`` means \"inherit the run budget\".",
+  "properties": {
+    "tokens": {
+      "anyOf": [
+        {
+          "maximum": 1000000000,
+          "minimum": 1000,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tokens"
+    },
+    "usd": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0.0,
+          "maximum": 1000000.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Usd"
+    }
+  },
+  "title": "MonthlyBudget",
+  "type": "object"
+}

@@ -1,0 +1,130 @@
+{
+  "$defs": {
+    "AccountProvider": {
+      "description": "Account.provider. Only ``mock`` is implemented in this step.",
+      "enum": [
+        "anthropic",
+        "openai_compatible",
+        "mock"
+      ],
+      "title": "AccountProvider",
+      "type": "string"
+    },
+    "AccountStatus": {
+      "description": "Account.status: resolved at call time, never cached in a binding.",
+      "enum": [
+        "active",
+        "degraded",
+        "disabled"
+      ],
+      "title": "AccountStatus",
+      "type": "string"
+    },
+    "MonthlyBudget": {
+      "additionalProperties": false,
+      "description": "Optional spend ceiling per account. ``None`` means \"inherit the run budget\".",
+      "properties": {
+        "tokens": {
+          "anyOf": [
+            {
+              "maximum": 1000000000,
+              "minimum": 1000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens"
+        },
+        "usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1000000.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Usd"
+        }
+      },
+      "title": "MonthlyBudget",
+      "type": "object"
+    }
+  },
+  "$id": "https://scholarloop.local/schemas/v1/Account.json",
+  "additionalProperties": false,
+  "description": "A provider account owned by a user. Users add/remove/disable these at any time.",
+  "properties": {
+    "base_url": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Only meaningful for provider=openai_compatible.",
+      "title": "Base Url"
+    },
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "key_ciphertext": {
+      "description": "Encrypted key blob (base64 AES-GCM). Opaque; never decrypted above the store.",
+      "maxLength": 8192,
+      "minLength": 1,
+      "title": "Key Ciphertext",
+      "type": "string"
+    },
+    "label": {
+      "description": "Human label, e.g. 'work-anthropic'.",
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+    },
+    "monthly_budget": {
+      "$ref": "#/$defs/MonthlyBudget"
+    },
+    "owner_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Owner Id",
+      "type": "string"
+    },
+    "provider": {
+      "$ref": "#/$defs/AccountProvider"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/AccountStatus",
+      "default": "active"
+    }
+  },
+  "required": [
+    "id",
+    "owner_id",
+    "provider",
+    "label",
+    "key_ciphertext"
+  ],
+  "title": "Account",
+  "type": "object"
+}
