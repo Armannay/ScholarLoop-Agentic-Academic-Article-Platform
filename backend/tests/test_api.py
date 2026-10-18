@@ -39,7 +39,12 @@ def test_health_reports_loaded_config(client: TestClient) -> None:
     assert body["rubric_loaded"] is True
     assert body["contract_version"] == CONTRACT_VERSION
     assert body["providers"]["mock"] is True
-    assert body["providers"]["live_adapters_implemented"] == []
+    assert body["providers"]["live_adapters_implemented"] == [
+        "anthropic",
+        "openai_compatible",
+    ]
+    # No APP_MASTER_KEY in this fixture: the account store is sealed, not broken.
+    assert body["providers"]["account_store_ready"] is False
     assert body["config_errors"] == {}
 
 
@@ -180,7 +185,7 @@ def test_cors_allows_the_vite_dev_server(client: TestClient) -> None:
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
-def test_account_endpoint_does_not_exist_yet(client: TestClient) -> None:
-    """Pinned so the next step notices it must add the account surface deliberately."""
-    assert client.get("/api/accounts").status_code == 404
-    assert sample_ulid(3)  # ids are available for the payloads that endpoint will take
+def test_account_surface_exists_and_is_protected(client: TestClient) -> None:
+    """The account surface ships in this step: present, and auth-only."""
+    assert client.get("/api/accounts").status_code == 401
+    assert sample_ulid(3)  # ids are available for account payloads

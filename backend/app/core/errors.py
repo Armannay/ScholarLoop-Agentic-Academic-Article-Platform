@@ -78,6 +78,24 @@ class NeedsUserInput(ScholarLoopError):
     http_status = 409
 
 
+class ConflictError(ScholarLoopError):
+    """The request is well-formed but conflicts with current state (409).
+
+    E.g. deleting an account that is the only candidate of an enabled role binding:
+    the delete is refused, not silently cascading, and the context names the roles.
+    """
+
+    code = "conflict"
+    http_status = 409
+
+
+class AuthError(ScholarLoopError):
+    """Authentication failed or is missing: bad credentials, expired or absent JWT."""
+
+    code = "auth_error"
+    http_status = 401
+
+
 def format_validation_errors(exc: ValidationError, *, limit: int = 4) -> str:
     """One-line summary of the first ``limit`` validation errors.
 

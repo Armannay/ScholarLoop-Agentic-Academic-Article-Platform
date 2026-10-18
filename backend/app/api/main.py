@@ -19,8 +19,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import func, select
 
 from app import CONTRACT_VERSION, __version__
+from app.accounts.crypto import EnvelopeEncryptor, get_master_key, install_key_redaction
+from app.accounts.db import create_session_factory, init_db, make_engine
+from app.accounts.models import AccountRow
+from app.accounts.service import SqlAccountResolver, SqlUsageSink
+from app.api.routers import accounts as accounts_router
+from app.api.routers import agents as agents_router
+from app.api.routers import auth as auth_router
 from app.api.routers import config as config_router
 from app.api.routers import health as health_router
 from app.core.errors import ConfigError, ScholarLoopError
@@ -30,6 +38,7 @@ from app.core.policies import load_policies
 from app.core.rubric import load_rubric
 from app.core.settings import Settings, get_settings
 from app.providers.errors import ProviderError
+from app.providers.pool import ProviderPool
 
 __all__ = ["app", "create_app"]
 
@@ -41,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Load config into app state; record failures instead of crashing the process."""
     settings: Settings = app.state.settings
     configure_logging(level=settings.log_level)
+    install_key_redaction()
     app.state.config_errors = {}
 
     overrides = (
@@ -76,9 +86,29 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.config_errors["rubric"] = exc.message
         logger.error("rubric failed to load: %s", exc.message)
 
-    # Accounts live in the encrypted store; the count is all the API needs at boot.
-    app.state.accounts_configured = 0
+    # Account store: engine + schema + the provider pool that resolves keys per call.
+    engine = make_engine(settings.database_url)
+    init_db(engine)
+    app.state.engine = engine
+    app.state.session_factory = create_session_factory(engine)
+    try:
+        app.state.encryptor = EnvelopeEncryptor(get_master_key())
+    except ConfigError as exc:
+        # Boot without a master key: health still answers, account ops say why.
+        # health reports this as providers.account_store_ready=false (not a config error).
+        app.state.encryptor = None
+        logger.warning("account store sealed: %s", exc.message)
+    app.state.pool = ProviderPool(
+        SqlAccountResolver(app.state.session_factory, app.state.encryptor),
+        usage_sink=SqlUsageSink(app.state.session_factory),
+    )
+    with app.state.session_factory() as session:
+        app.state.accounts_configured = int(
+            session.scalar(select(func.count()).select_from(AccountRow)) or 0
+        )
+    logger.info("account store ready", extra={"accounts": app.state.accounts_configured})
     yield
+    await app.state.pool.aclose()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -129,6 +159,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health_router.router)
     app.include_router(config_router.router)
+    app.include_router(auth_router.router)
+    app.include_router(accounts_router.router)
+    app.include_router(agents_router.router)
 
     @app.get("/", include_in_schema=False)
     def root() -> dict[str, str]:

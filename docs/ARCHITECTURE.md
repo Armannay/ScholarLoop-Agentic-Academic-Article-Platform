@@ -27,8 +27,12 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 | Orchestrator | `app/orchestrator/` | the loop: state machine, scheduling, decision |
 | API | `app/api/` | FastAPI surface (`/api/health`, `/api/config`, contracts) |
 
-Only `contracts`, `core`, `providers`, `scripts` and `api` exist today; the rest are
-the interfaces this foundation was built to accept.
+Only `contracts`, `core`, `providers`, `accounts`, `scripts` and `api` exist today;
+the rest are the interfaces this foundation was built to accept. The account store
+(`app/accounts/`) holds provider keys encrypted at rest (AES-GCM envelope,
+`APP_MASTER_KEY`), resolves them at call time through `app/providers/pool.py`, and
+ships live adapters for Anthropic (Claude Console keys for the Planner) and
+OpenAI-compatible services (OpenRouter et al.).
 
 ## State machine
 
