@@ -35,10 +35,13 @@ Postgres instead of SQLite: `docker compose --profile postgres up`.
 backend/app/
   contracts/   Pydantic v2 wire format (extra=forbid, schema_version=1)
   core/        settings, policies, rubric, ids, hashing, redaction, logging
-  providers/   LLMProvider Protocol, ProviderError family, MockProvider
-  api/         FastAPI: health, effective config, contract schemas
-  accounts/ governor/ memory/ article/ agents/ planner/ orchestrator/   # next steps
-backend/tests/ contract round-trip, config loaders, MockProvider, API, secret scan
+  providers/   LLMProvider Protocol, ProviderError family, MockProvider, provider pool
+  accounts/    encrypted key store (AES-GCM), resolved at call time
+  governor/    token budgets: call / iteration / run caps, refusal not truncation
+  agents/      task context: the bounded prompt an agent receives
+  api/         FastAPI: health, effective config, accounts, contract schemas
+  memory/ article/ planner/ orchestrator/                           # next steps
+backend/tests/ contract round-trip, config loaders, MockProvider, accounts, API, secret scan
 config/        policies.yaml (loop knobs), rubric.yaml (gates, criteria, sections)
 rules/         root.rules.md + agents/<role>.rules.md   (<= 400 tokens each)
 frontend/      React + Vite + TypeScript status console
@@ -57,6 +60,30 @@ docs/          ARCHITECTURE.md, DECISIONS.md, schemas/
 ## Status
 
 Foundation complete: contracts, policy/rubric config, rules, provider interface with
-MockProvider, API health/config surface, CI. Next: accounts (encrypted store), the
-governor, the ledger/digest, the article store with patch application, the five agents,
-the Planner, and the loop controller.
+MockProvider, API health/config surface, CI.
+
+Runtime core complete: the encrypted account store (keys sealed with AES-GCM, only
+fingerprints leave the process), the token governor (refuses over-budget calls rather
+than truncating prompts), the provider pool (bindings and accounts resolved at call
+time, with failover) and the task context builder (a prompt of references, never of
+article text). The accounts are manageable from the API and from the console.
+
+Next: the ledger and its bounded digest, the article store with patch application, the
+agent runtime and the five agents, the Planner, and the loop controller.
+
+## Accounts
+
+Provider accounts are added, changed and deleted at runtime, and they are resolved at
+call time - a key that is rotated or disabled mid-run takes effect on the very next
+call. The API needs a store secret to encrypt anything:
+
+```bash
+export SCHOLARLOOP_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+make run
+curl -X POST localhost:8000/api/accounts \
+  -H 'content-type: application/json' \
+  -d '{"provider": "anthropic", "label": "work", "key": "<your key>"}'
+```
+
+The response carries a 12-character fingerprint, never the key. Without the secret the
+account endpoints answer 503 instead of accepting a plaintext key.

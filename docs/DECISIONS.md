@@ -62,3 +62,21 @@ Never edit a merged ADR: supersede it with a new one and link both ways.
 - **Decision:** One Pydantic v2 module per contract in `backend/app/contracts/`, `extra="forbid"`, `schema_version: Literal[1]` on documents, string ULIDs, UTC timestamps. `make schemas` exports JSON Schemas to `docs/schemas/`, and CI fails if the committed schemas drift from the models. Contract tests assert round-trip losslessness, unknown-field rejection and the registry's completeness.
 - **Alternatives:** JSON Schema as the source of truth (rejected: loses Python typing, so `mypy --strict` cannot help); protobuf/OpenAPI-first (rejected: heavy for a four-person build, and prompts want plain JSON Schema).
 - **Consequences:** one definition serves runtime validation, IDE autocompletion, documentation and the schemas handed to models. Cost: contract changes must be deliberate — a field rename is a breaking change that requires a CONTRACT-CHANGE-REQUEST and a re-export.
+
+## ADR-0006 — The governor refuses an over-budget call instead of truncating it
+
+- **Status:** accepted
+- **Date:** 2026-10-18
+- **Context:** A prompt that does not fit into the budget can be handled in three ways: truncate it, refuse it, or let it through and hope. Truncation is the worst of the three: the model answers a question nobody asked, the answer looks plausible, and the failure is invisible in the article until a human reads it. A cap that is only advisory is not a cap.
+- **Decision:** The governor checks the prompt size, the binding's own ceilings, the iteration cap, the run cap and the task budget *before* a call, and raises `BudgetExceeded` with a machine-readable cap name when the call does not fit. The prompt is never shortened behind the caller's back. The cost of a call is estimated as `prompt + max_output` and reconciled against the real usage when the response arrives, so a single oversized completion is recorded as an overrun rather than hidden.
+- **Alternatives:** silently trimming the prompt to the cap (rejected: it produces confidently wrong articles); letting the provider truncate (rejected: the model then answers a different question); no cap at all (rejected: the run cost becomes unbounded).
+- **Consequences:** every refusal names the cap that tripped, so the loop controller can react (`retry later`, `split the task`, `stop the run`) and the ledger can explain it. The governor is pure arithmetic and unit-testable without a provider. Cost: a run can stop for budget reasons that the planner did not anticipate, and callers must handle `BudgetExceeded` instead of assuming a response.
+
+## ADR-0007 — An agent's prompt carries references, never the article
+
+- **Status:** accepted
+- **Date:** 2026-10-18
+- **Context:** The cheapest prompt is the smallest one, but the *correct* prompt is the one that carries exactly the facts the task needs. Handing an agent the manuscript invites two failure modes: the model rewrites prose it was only asked to extend, and the prompt cost grows with the article instead of staying flat.
+- **Decision:** The task context is assembled from references: the brief, the task and its acceptance criteria, the *state* of the sections involved (id, version, word count, status, open issues), the *cards* of the sources that may be cited (id, authors, year, venue, locator, a snippet of at most 60 words) and the bounded digest. Section text is never in the prompt; the agent reads it through the article store and writes back through patches.
+- **Alternatives:** include the section text (rejected: token cost grows with the article, and "edit this paragraph" becomes "rewrite this article"); include the whole ledger (rejected: ADR-0002 - the digest is the bounded history); include the source snippets without a cap (rejected: a single verbose source would dominate the prompt).
+- **Consequences:** prompt size is a function of the number of *references*, not of the size of the manuscript, so per-task cost is predictable. The builder is bounded on every axis (sources, sections, digest characters, user-provided data), and the governor has the last word. Cost: an agent sometimes needs a follow-up task to fetch a specific piece of text, and the orchestrator has to keep the section states and source cards current for the context to be worth anything.

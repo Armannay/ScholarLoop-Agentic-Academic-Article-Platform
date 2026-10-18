@@ -6,16 +6,19 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
 
+from app.accounts.store import AccountStore
 from app.core.errors import ConfigError
 from app.core.policies import Policies
 from app.core.rubric import Rubric
 from app.core.settings import Settings, get_settings
 
 __all__ = [
+    "AccountStoreDep",
     "ConfigDep",
     "PoliciesDep",
     "RubricDep",
     "SettingsDep",
+    "get_account_store_dep",
     "get_policies_dep",
     "get_rubric_dep",
 ]
@@ -50,6 +53,29 @@ def get_rubric_dep(request: Request) -> Rubric:
     if rubric is None:
         raise _config_unavailable(request, "rubric")
     return rubric
+
+
+def get_account_store_dep(request: Request) -> AccountStore:
+    """The encrypted account store, or 503 when no store secret is configured.
+
+    The store needs ``SCHOLARLOOP_SECRET_KEY``: without it there is no way to
+    encrypt a provider key, so the account endpoints refuse to pretend otherwise.
+    """
+    store: AccountStore | None = getattr(request.app.state, "account_store", None)
+    if store is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "account_store_disabled",
+                "message": (
+                    "the account store is disabled: set SCHOLARLOOP_SECRET_KEY to enable it"
+                ),
+            },
+        )
+    return store
+
+
+AccountStoreDep = Annotated[AccountStore, Depends(get_account_store_dep)]
 
 
 def _config_unavailable(request: Request, name: str) -> HTTPException:

@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { fetchConfig, fetchContracts, fetchHealth } from './api'
 import { useAsync } from './useApi'
 import type { ConfigResponse, ContractListResponse, HealthResponse, Policies } from './types'
+import { AccountsPanel } from './AccountsPanel'
 import { SchemaViewer } from './SchemaViewer'
 import { StatusPill } from './StatusPill'
 import './styles.css'
@@ -85,6 +86,7 @@ export function App(): React.JSX.Element {
 
       <section className="grid">
         <RuntimePanel health={health.data} error={health.error} />
+        <AccountsPanel />
         <BudgetPanel policies={config.data?.policies ?? null} error={config.error} />
         <ErosionPanel policies={config.data?.policies ?? null} />
         <RubricPanel config={config.data} error={config.error} />
