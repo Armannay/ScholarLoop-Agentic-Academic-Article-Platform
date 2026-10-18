@@ -6,6 +6,9 @@
 // VITE_API_BASE_URL exists for deployments that serve the API from another origin.
 
 import type {
+  AccountCreateInput,
+  AccountPublic,
+  AccountStatus,
   ConfigResponse,
   ContractListResponse,
   HealthResponse,
@@ -84,4 +87,39 @@ export async function fetchContracts(signal?: AbortSignal): Promise<ContractList
 
 export async function fetchContractSchema(name: string, signal?: AbortSignal): Promise<unknown> {
   return request<unknown>(`/api/contracts/${encodeURIComponent(name)}/schema`, signal ? { signal } : undefined)
+}
+
+export async function fetchAccounts(signal?: AbortSignal): Promise<AccountPublic[]> {
+  return request<AccountPublic[]>('/api/accounts', signal ? { signal } : undefined)
+}
+
+export async function createAccount(input: AccountCreateInput): Promise<AccountPublic> {
+  return request<AccountPublic>('/api/accounts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function setAccountStatus(
+  id: string,
+  status: AccountStatus,
+): Promise<AccountPublic> {
+  return request<AccountPublic>(`/api/accounts/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ status }),
+  })
+}
+
+export async function rotateAccountKey(id: string, key: string): Promise<AccountPublic> {
+  return request<AccountPublic>(`/api/accounts/${encodeURIComponent(id)}/key`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ key }),
+  })
+}
+
+export async function deleteAccount(id: string): Promise<void> {
+  await request<void>(`/api/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }

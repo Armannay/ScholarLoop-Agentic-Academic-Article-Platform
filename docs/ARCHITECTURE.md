@@ -18,17 +18,52 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 | Contracts | `app/contracts/` | Pydantic v2 wire format, `extra="forbid"`, `schema_version=1` |
 | Core | `app/core/` | settings, policies, rubric, ULIDs, hashing, redaction, logging |
 | Accounts | `app/accounts/` | encrypted key store; keys resolved **at call time** |
-| Providers | `app/providers/` | `LLMProvider` Protocol, `ProviderError` family, `MockProvider` |
+| Providers | `app/providers/` | `LLMProvider` Protocol, `ProviderError` family, `MockProvider`, provider pool |
 | Governor | `app/governor/` | token budgets, caps, per-call accounting |
 | Memory | `app/memory/` | append-only ledger, bounded digest, compaction |
 | Article | `app/article/` | section store, patch application, versioning |
 | Agents | `app/agents/` | architect, researcher, writer, reviewer, validator |
 | Planner | `app/planner/` | plan construction and verdict evaluation (LLM, JSON-schema) |
 | Orchestrator | `app/orchestrator/` | the loop: state machine, scheduling, decision |
-| API | `app/api/` | FastAPI surface (`/api/health`, `/api/config`, contracts) |
+| API | `app/api/` | FastAPI surface (`/api/health`, `/api/config`, `/api/accounts`, contracts) |
 
-Only `contracts`, `core`, `providers`, `scripts` and `api` exist today; the rest are
-the interfaces this foundation was built to accept.
+`contracts`, `core`, `providers`, `accounts`, `governor`, `scripts` and `api` exist
+today. The rest are the interfaces this foundation was built to accept.
+
+## The runtime core (what exists between the contracts and the agents)
+
+Three services sit between "the user changed an account" and "a model answered".
+They are deliberately small and deliberately boring, because everything expensive
+downstream depends on them being predictable.
+
+```
+account store ──► binding registry ──► provider pool ──► provider
+      (ciphertext)      (role → ids)      (call time)     (one call)
+                            ▲                 │
+                            │                 ▼
+                     agent binding        governor
+                                      (precheck / charge)
+```
+
+* **Account store** (`app/accounts/`) - a key is accepted as plaintext only at the
+  boundary and is stored as an AES-GCM ciphertext. `reveal()` is the single method
+  in the codebase that returns a plaintext key, and the account's *fingerprint*
+  (12 hex characters of the ciphertext) is what the UI shows. Rotating a key
+  changes the fingerprint, which is how an operator proves a rotation happened.
+* **Binding registry** (`app/providers/pool.py`) - role → ordered account ids plus
+  a strategy (`dedicated | round_robin | failover`). A binding holds ids, never
+  accounts, because accounts come and go while a run is in flight.
+* **Provider pool** (`app/providers/pool.py`) - resolves the binding, then the
+  accounts, *at call time*; walks the candidates when a call fails for a provider
+  reason; hands the decrypted key to the provider builder; and charges what was
+  spent.
+* **Governor** (`app/governor/`) - checks `call_input_cap`, the binding's own
+  ceilings, `iteration_token_cap`, `run_token_cap` and (when the run state carries
+  it) the task budget *before* a call. It refuses; it never truncates a prompt.
+* **Task context** (`app/agents/context.py`) - assembles the prompt for one task
+  from the brief, the task, section *states*, source *cards* and the digest. The
+  article itself is never in the prompt.
+
 
 ## State machine
 

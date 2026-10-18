@@ -62,3 +62,26 @@ export interface ContractListResponse {
   names: string[]
   schema_url_template: string
 }
+
+export type AccountProvider = 'anthropic' | 'openai_compatible' | 'mock'
+export type AccountStatus = 'active' | 'degraded' | 'disabled'
+
+/** The redacted view of an account: a fingerprint, never a key. */
+export interface AccountPublic {
+  id: string
+  owner_id: string
+  provider: AccountProvider
+  label: string
+  status: AccountStatus
+  base_url: string | null
+  key_fingerprint: string
+  monthly_budget: { tokens: number | null; usd: number | null }
+}
+
+export interface AccountCreateInput {
+  provider: AccountProvider
+  label: string
+  key?: string
+  owner_id?: string
+  base_url?: string
+}

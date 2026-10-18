@@ -180,7 +180,13 @@ def test_cors_allows_the_vite_dev_server(client: TestClient) -> None:
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
-def test_account_endpoint_does_not_exist_yet(client: TestClient) -> None:
-    """Pinned so the next step notices it must add the account surface deliberately."""
-    assert client.get("/api/accounts").status_code == 404
-    assert sample_ulid(3)  # ids are available for the payloads that endpoint will take
+def test_the_account_surface_refuses_to_work_without_a_store_secret(client: TestClient) -> None:
+    """The account surface exists, but it needs a secret to encrypt a key with.
+
+    Without ``SCHOLARLOOP_SECRET_KEY`` there is no way to store a key safely, so
+    the endpoints say so (503) instead of accepting a plaintext one.
+    """
+    response = client.get("/api/accounts")
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "account_store_disabled"
+    assert sample_ulid(3)  # ids are available for the payloads that endpoint takes

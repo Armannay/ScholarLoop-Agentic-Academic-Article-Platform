@@ -1,21 +1,83 @@
-"""Response models for the API. Contracts stay in ``app.contracts``; these describe
-the *surface* (health, config summaries) and never carry secrets."""
+"""Request and response models for the API.
+
+Contracts stay in ``app.contracts``; these describe the *surface* (health, config
+summaries, account administration) and never carry secrets. A request may carry a
+provider key - that is the only way a key ever enters the process - so key
+fields are :class:`pydantic.SecretStr` and are never echoed back.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, SecretStr, field_validator
 
+from app.contracts.account import MonthlyBudget
 from app.contracts.common import Contract, NonEmptyStr
+from app.contracts.enums import AccountProvider, AccountStatus
 
 __all__ = [
+    "AccountCreateRequest",
+    "AccountKeyRequest",
+    "AccountUpdateRequest",
     "ConfigResponse",
     "ContractListResponse",
     "HealthResponse",
     "ProviderStatus",
     "RubricSummary",
 ]
+
+
+class AccountCreateRequest(Contract):
+    """Add a provider account.
+
+    ``key`` is the only place a plaintext provider key is accepted. The account
+    store encrypts it before it is retained, and no endpoint ever returns it.
+    """
+
+    owner_id: NonEmptyStr = Field(default="default", max_length=64)
+    provider: AccountProvider
+    label: NonEmptyStr = Field(max_length=64)
+    key: SecretStr | None = Field(
+        default=None,
+        description="Provider API key. Only 'mock' accounts may be added without one.",
+    )
+    base_url: str | None = Field(default=None, max_length=500)
+    monthly_budget: MonthlyBudget | None = None
+
+    @field_validator("key")
+    @classmethod
+    def _clean_key(cls, value: SecretStr | None) -> SecretStr | None:
+        """Trim a pasted key and refuse an empty one."""
+        if value is None:
+            return None
+        cleaned = value.get_secret_value().strip()
+        if not cleaned:
+            raise ValueError("the key must not be empty")
+        return SecretStr(cleaned)
+
+
+class AccountUpdateRequest(Contract):
+    """Change the metadata of an account. The key is rotated through its own route."""
+
+    label: NonEmptyStr | None = Field(default=None, max_length=64)
+    status: AccountStatus | None = None
+    monthly_budget: MonthlyBudget | None = None
+
+
+class AccountKeyRequest(Contract):
+    """Rotate the key of an account."""
+
+    key: SecretStr
+
+    @field_validator("key")
+    @classmethod
+    def _clean_key(cls, value: SecretStr) -> SecretStr:
+        """Trim a pasted key and refuse an empty one."""
+        cleaned = value.get_secret_value().strip()
+        if not cleaned:
+            raise ValueError("the key must not be empty")
+        return SecretStr(cleaned)
 
 
 class ProviderStatus(Contract):
@@ -41,7 +103,7 @@ class HealthResponse(Contract):
 
 
 class RubricSummary(Contract):
-    """The rubric as the dashboard needs it: sections, gates and weights."""
+    """The rubric as the dashboard needs it: sections, gates, weights."""
 
     article_types: dict[str, list[str]] = Field(description="Article type -> required section ids.")
     gates: list[str] = Field(description="The 8 hard gate names, in canonical order.")
