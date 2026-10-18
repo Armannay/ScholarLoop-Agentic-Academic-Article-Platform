@@ -343,6 +343,31 @@ async def test_an_account_without_budget_is_not_called(store: InMemoryAccountSto
     assert builder.calls == []
 
 
+async def test_an_exhausted_account_gives_way_to_the_next_one(
+    store: InMemoryAccountStore,
+) -> None:
+    """A binding may mix a spent account with one that can still pay."""
+    from app.contracts.account import MonthlyBudget
+
+    spent = store.add(
+        owner_id="user-001",
+        provider=AccountProvider.MOCK,
+        label="spent",
+        monthly_budget=MonthlyBudget(tokens=1_000),
+    )
+    funded = add_account(store, "funded", AccountProvider.MOCK)
+    builder = ScriptedBuilder(
+        {funded.id: MockProvider(Script().reply(BindingRole.WRITER, 0, "ok"))}
+    )
+    registry = BindingRegistry()
+    registry.upsert(make_binding([spent.id, funded.id], strategy="failover"))
+    pool = ProviderPool(store, registry, builder=builder)
+
+    response = await pool.call(make_request("x" * 4_000), role=BindingRole.WRITER)
+    assert response.text == "ok"
+    assert [account_id for account_id, _ in builder.calls] == [funded.id]
+
+
 def test_the_pool_resolves_a_binding_like_the_routing_protocol(
     store: InMemoryAccountStore,
 ) -> None:

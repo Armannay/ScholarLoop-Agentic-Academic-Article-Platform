@@ -16,9 +16,11 @@ The pool is also where the three services meet:
 Failover is a property of the *binding*, not of the pool: ``failover`` walks the
 account list in order until one call succeeds, ``round_robin`` rotates the start
 position, ``dedicated`` uses the first account only. A call that fails for a
-*provider* reason (timeout, rate limit, revoked key) moves on to the next account;
-a call that fails for a *budget* reason does not, because the next account would
-be charged the same way.
+*provider* reason (timeout, rate limit, revoked key) moves on to the next account.
+An account that is out of its *own* monthly budget is skipped as well - the next
+account may still be able to pay. A call that does not fit into the run's or the
+iteration's budget is refused before the loop starts, because that is a property
+of the run and not of an account.
 """
 
 from __future__ import annotations
@@ -180,8 +182,7 @@ class ProviderPool:
         """Build a provider for the first usable account of a binding.
 
         Raises:
-            NoAccountAvailable: every account of the binding is missing, disabled
-                or over its own budget.
+            NoAccountAvailable: every account of the binding is missing or disabled.
             ProviderUnsupported: the account's provider has no adapter (yet).
         """
         accounts = self._ordered_accounts(binding)
@@ -235,9 +236,16 @@ class ProviderPool:
 
         estimated = prompt_tokens(request) + request.max_output_tokens
         last_error: ProviderError | None = None
+        budget_error: BudgetExceeded | None = None
 
         for account in accounts:
-            self._check_account_budget(account, estimated)
+            exhausted = self._account_budget_error(account, estimated)
+            if exhausted is not None:
+                # This account is out of its own budget; another account of the
+                # binding may still be able to pay for the call.
+                budget_error = exhausted
+                continue
+
             try:
                 provider = self._build(account)
             except ProviderError as exc:
@@ -262,6 +270,8 @@ class ProviderPool:
 
         if last_error is not None:
             raise last_error
+        if budget_error is not None:
+            raise budget_error
         raise NoAccountAvailable(  # pragma: no cover - the loop above always returns or raises
             f"no usable account for role {resolved.role.value!r}",
             provider=resolved.role.value,
@@ -307,18 +317,23 @@ class ProviderPool:
         )
         return self._builder(account, key=key)
 
-    def _check_account_budget(self, account: Account, estimated: int) -> None:
-        """Refuse a call the account's own monthly budget cannot pay for."""
+    def _account_budget_error(self, account: Account, estimated: int) -> BudgetExceeded | None:
+        """The error when an account's own monthly budget cannot pay for a call.
+
+        Returns ``None`` when the account can pay. The caller decides what to do
+        with an exhausted account: a binding may well have another one.
+        """
         remaining = self._accounts.remaining(account)
-        if remaining is not None and estimated > remaining:
-            raise BudgetExceeded(
-                "the account's own budget is exhausted",
-                cap="account_monthly_budget",
-                limit=account.monthly_budget.tokens,
-                remaining=remaining,
-                requested=estimated,
-                account_id=account.id,
-            )
+        if remaining is None or estimated <= remaining:
+            return None
+        return BudgetExceeded(
+            "the account's own budget is exhausted",
+            cap="account_monthly_budget",
+            limit=account.monthly_budget.tokens,
+            remaining=remaining,
+            requested=estimated,
+            account_id=account.id,
+        )
 
     def _charge(self, usage: TokenUsage, account: Account) -> None:
         """Record the real usage of a call against the governor and the account."""
