@@ -134,7 +134,8 @@ def test_digest_never_exceeds_ceiling_under_heavy_load() -> None:
                 ),
             )
             for i in range(1, 16)
-        ]
+        ],
+        role=AgentRole.VALIDATOR,
     )
 
     builder = DigestBuilder(policies)
@@ -288,3 +289,78 @@ def test_write_rejects_oversized_snapshot(tmp_path: Path, policies: Policies) ->
     )
     with pytest.raises(DigestBudgetExceeded):
         builder.write(tmp_path / "claude.md", oversized)
+
+
+def test_compacted_entry_ids_only_reported_when_compacted_batch_exists(
+    policies: Policies,
+) -> None:
+    """When older entries exist but compaction has not run, compacted_entry_ids is empty."""
+    entries = [make_entry(i, iteration=i, summary=f"Short summary {i}.") for i in range(1, 6)]
+    ledger = InMemoryLedger(entries)
+    builder = DigestBuilder(policies)
+    snapshot = builder.build(ledger)
+
+    assert snapshot.compacted is False
+    assert snapshot.compacted_batch is None
+    assert snapshot.recent_entry_ids == [e.id for e in entries[-3:]]
+    assert snapshot.compacted_entry_ids == []
+
+
+async def test_emergency_trim_never_truncates_recent_entries_and_raises_when_budget_too_small() -> (
+    None
+):
+    """Emergency budget fitting keeps recent entries verbatim or raises DigestBudgetExceeded."""
+    entries = [
+        make_entry(
+            i,
+            iteration=1,
+            role=AgentRole.WRITER,
+            summary=(
+                f"Verbatim recent entry {i} summary with specific details that must "
+                f"never be truncated silently at marker SENTINEL_END_{i}."
+            ),
+        )
+        for i in range(1, 4)
+    ]
+    ledger = InMemoryLedger(entries)
+
+    # 1. A budget (230 tokens) exceeded by full metadata at detail_level=0 triggers
+    #    _emergency_trim, which preserves all 3 entries verbatim (~212 tokens).
+    payloads = sample_payloads()
+    brief = Brief.model_validate(payloads["Brief"])
+    plan = Plan.model_validate(payloads["Plan"])
+    section = SectionState.model_validate(payloads["SectionState"])
+    report = QualityReport.model_validate(payloads["QualityReport"])
+
+    fitting_policies = Policies(
+        digest_max_tokens=230,
+        recent_window=3,
+        compact_trigger=0.8,
+    )
+    fitting_builder = DigestBuilder(fitting_policies)
+    fitted = fitting_builder.build(
+        ledger,
+        brief=brief,
+        plan=plan,
+        sections=[section],
+        reports=[report],
+    )
+    assert fitted.tokens <= fitting_policies.digest_max_tokens
+    for idx, entry in enumerate(entries, start=1):
+        assert entry.id in fitted.markdown
+        assert entry.summary in fitted.markdown
+        assert f"SENTINEL_END_{idx}" in fitted.markdown
+
+    # 2. When required verbatim recent entries (~212 tokens) exceed digest_max_tokens (200),
+    #    DigestBuilder raises DigestBudgetExceeded instead of truncating recent summaries.
+    impossible_policies = Policies(
+        digest_max_tokens=200,
+        recent_window=3,
+        compact_trigger=0.8,
+    )
+    impossible_builder = DigestBuilder(impossible_policies)
+    with pytest.raises(DigestBudgetExceeded, match="cannot preserve"):
+        impossible_builder.build(ledger)
+
+    with pytest.raises(DigestBudgetExceeded, match="cannot preserve"):
+        await impossible_builder.abuild(ledger)

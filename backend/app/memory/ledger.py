@@ -186,13 +186,13 @@ class InMemoryLedger:
             )
 
         stored = validated.model_copy(deep=True)
+        if self._path is not None:
+            self._append_jsonl_line(self._path, stored)
+
         self._by_id[stored.id] = len(self._entries)
         self._entries.append(stored)
         if stored.iter > self._max_iter:
             self._max_iter = stored.iter
-
-        if self._path is not None:
-            self._append_jsonl_line(self._path, stored)
 
         return stored.model_copy(deep=True)
 
@@ -360,10 +360,16 @@ class InMemoryLedger:
     # -- JSONL persistence -------------------------------------------------
     def save_jsonl(self, path: Path) -> None:
         """Write the entire ledger as UTF-8 JSON Lines (one ChangeEntry per line)."""
-        path.parent.mkdir(parents=True, exist_ok=True)
         lines = [entry.model_dump_json(by_alias=True) for entry in self._entries]
         payload = ("\n".join(lines) + "\n") if lines else ""
-        path.write_text(payload, encoding="utf-8")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(payload, encoding="utf-8")
+        except OSError as exc:
+            raise LedgerError(
+                f"failed to save ledger JSONL to {path}: {exc}",
+                path=str(path),
+            ) from exc
 
     @classmethod
     def from_jsonl(
@@ -376,13 +382,21 @@ class InMemoryLedger:
         """Load a ledger from a JSON Lines file.
 
         Raises:
-            LedgerError: the file does not exist or contains a malformed line.
+            LedgerError: the file does not exist, cannot be read, or contains a
+                malformed line.
         """
         if not path.exists():
             raise LedgerError(f"ledger JSONL file not found: {path}", path=str(path))
 
+        try:
+            raw_lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            raise LedgerError(
+                f"failed to read ledger JSONL file {path}: {exc}",
+                path=str(path),
+            ) from exc
+
         loaded: list[ChangeEntry] = []
-        raw_lines = path.read_text(encoding="utf-8").splitlines()
         for line_number, line in enumerate(raw_lines, start=1):
             stripped = line.strip()
             if not stripped:
@@ -416,9 +430,27 @@ class InMemoryLedger:
 
     @staticmethod
     def _append_jsonl_line(path: Path, entry: ChangeEntry) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(entry.model_dump_json(by_alias=True) + "\n")
+        line = entry.model_dump_json(by_alias=True) + "\n"
+        initial_size: int | None = None
+        try:
+            if path.exists() and path.is_file():
+                initial_size = path.stat().st_size
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(line)
+                handle.flush()
+        except OSError as exc:
+            if initial_size is not None:
+                try:
+                    with path.open("r+b") as cleanup_handle:
+                        cleanup_handle.truncate(initial_size)
+                except OSError:
+                    pass
+            raise LedgerError(
+                f"failed to persist ChangeEntry {entry.id!r} to {path}: {exc}",
+                entry_id=entry.id,
+                path=str(path),
+            ) from exc
 
 
 #: Alias used by callers that name the concrete store after its contract.

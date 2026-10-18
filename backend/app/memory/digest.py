@@ -311,7 +311,6 @@ class DigestBuilder:
 
         if estimate_tokens(rendered) > max_tokens:
             rendered = self._emergency_trim(
-                rendered,
                 recent_entries=recent_entries,
                 compacted_batch=compacted_batch,
                 max_tokens=max_tokens,
@@ -325,6 +324,16 @@ class DigestBuilder:
                 max_tokens=max_tokens,
             )
 
+        for entry in recent_entries:
+            if entry.id not in rendered or entry.summary not in rendered:
+                raise DigestBudgetExceeded(
+                    f"digest_max_tokens ({max_tokens}) cannot preserve verbatim "
+                    f"recent entry {entry.id!r} and its summary",
+                    tokens=tokens,
+                    max_tokens=max_tokens,
+                    entry_id=entry.id,
+                )
+
         latest_q = reports[-1].Q if reports else None
         open_issues = self._combined_open_issues(issue_summary, reports)
 
@@ -336,9 +345,7 @@ class DigestBuilder:
             compacted=compacted,
             recent_entry_ids=[entry.id for entry in recent_entries],
             compacted_entry_ids=(
-                list(compacted_batch.entry_ids)
-                if compacted_batch is not None
-                else [entry.id for entry in older_entries]
+                list(compacted_batch.entry_ids) if compacted and compacted_batch is not None else []
             ),
             compacted_batch=compacted_batch,
             open_issues=open_issues,
@@ -545,25 +552,53 @@ class DigestBuilder:
 
     def _emergency_trim(
         self,
-        rendered: str,
         *,
         recent_entries: Sequence[ChangeEntry],
         compacted_batch: CompactedBatch | None,
         max_tokens: int,
     ) -> str:
-        """Last-resort trimmer when ``digest_max_tokens`` is configured very small."""
-        lines = ["# ScholarLoop Digest (claude.md)"]
+        """Last-resort budget fitting that never truncates recent entries or summaries.
+
+        Raises:
+            DigestBudgetExceeded: the configured ``max_tokens`` cannot hold the
+                required verbatim recent entries (and compacted history when present).
+        """
+        header = "# ScholarLoop Digest (claude.md)"
+        recent_lines = [f"## Recent Entries (last {self._policies.recent_window} verbatim)"]
+        if not recent_entries:
+            recent_lines.append("- (no ledger entries yet)")
+        else:
+            for entry in recent_entries:
+                recent_lines.append(self._format_entry_line(entry, verbatim=True))
+        recent_block = "\n".join(recent_lines)
+
         if compacted_batch is not None:
-            lines.append("## Compacted History")
-            lines.append(compacted_batch.render(max_tokens=max(24, max_tokens // 4)))
-        lines.append(f"## Recent Entries (last {self._policies.recent_window} verbatim)")
-        for entry in recent_entries:
-            lines.append(self._format_entry_line(entry, verbatim=True))
-        candidate = "\n".join(lines)
-        if estimate_tokens(candidate) <= max_tokens:
-            return candidate
-        char_budget = max(32, max_tokens * 4)
-        return candidate[:char_budget].rstrip()
+            for comp_budget in (
+                max(24, max_tokens // 3),
+                max(20, max_tokens // 4),
+                32,
+                20,
+            ):
+                compacted_section = "## Compacted History\n" + compacted_batch.render(
+                    max_tokens=comp_budget
+                )
+                candidate = "\n\n".join([header, compacted_section, recent_block])
+                if estimate_tokens(candidate) <= max_tokens:
+                    return candidate
+        else:
+            candidate = "\n\n".join([header, recent_block])
+            if estimate_tokens(candidate) <= max_tokens:
+                return candidate
+
+        required_tokens = estimate_tokens(candidate)
+        raise DigestBudgetExceeded(
+            f"digest_max_tokens ({max_tokens}) cannot preserve the "
+            f"{len(recent_entries)} required verbatim recent ledger entries "
+            f"without truncation (requires at least {required_tokens} tokens)",
+            tokens=required_tokens,
+            max_tokens=max_tokens,
+            recent_entries=len(recent_entries),
+        )
 
 
 class MemoryStore:

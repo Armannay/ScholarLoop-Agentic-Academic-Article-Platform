@@ -87,27 +87,48 @@ def test_deduplicates_by_url_when_doi_is_absent() -> None:
 
 
 def test_only_validator_may_submit_or_set_verified_status() -> None:
-    """Non-validator roles are forbidden from setting verification!=unknown."""
+    """Non-validator roles and missing role (None) cannot set verification!=unknown."""
     store = InMemorySourceStore()
-    forged = make_card(1, verification=VerificationStatus.VERIFIED)
+    forged_verified = make_card(1, verification=VerificationStatus.VERIFIED)
+    forged_mismatch = make_card(2, verification=VerificationStatus.MISMATCH)
 
     for forbidden_role in (
+        None,
         AgentRole.RESEARCHER,
         AgentRole.WRITER,
         AgentRole.REVIEWER,
         AgentRole.ARCHITECT,
     ):
-        with pytest.raises(SourceVerificationError) as excinfo:
-            store.add(forged, role=forbidden_role)
-        assert excinfo.value.code == "source_verification_error"
+        for forged in (forged_verified, forged_mismatch):
+            with pytest.raises(SourceVerificationError) as excinfo:
+                store.add(forged, role=forbidden_role)
+            assert excinfo.value.code == "source_verification_error"
 
-    unknown_card = store.add(make_card(2), role=AgentRole.RESEARCHER)
-    with pytest.raises(SourceVerificationError):
-        store.set_verification(
-            unknown_card.id,
-            VerificationStatus.VERIFIED,
-            role=AgentRole.RESEARCHER,
-        )
+        with pytest.raises(SourceVerificationError):
+            InMemorySourceStore([forged_verified], role=forbidden_role)
+
+    assert len(store) == 0
+
+    unknown_card = store.add(make_card(3), role=AgentRole.RESEARCHER)
+    for forbidden_role in (
+        None,
+        AgentRole.RESEARCHER,
+        AgentRole.WRITER,
+        AgentRole.REVIEWER,
+        AgentRole.ARCHITECT,
+    ):
+        with pytest.raises(SourceVerificationError):
+            store.set_verification(
+                unknown_card.id,
+                VerificationStatus.VERIFIED,
+                role=forbidden_role,
+            )
+        with pytest.raises(SourceVerificationError):
+            store.set_verification(
+                unknown_card.id,
+                VerificationStatus.MISMATCH,
+                role=forbidden_role,
+            )
 
     verified = store.set_verification(
         unknown_card.id,
@@ -120,6 +141,43 @@ def test_only_validator_may_submit_or_set_verified_status() -> None:
         store.verification_evidence(unknown_card.id)
         == "CrossRef DOI metadata matches title, authors and year."
     )
+
+
+def test_duplicate_merge_rejects_unauthorized_verification_promotion() -> None:
+    """Duplicate merges cannot promote an unknown source to verified/mismatch without VALIDATOR."""
+    store = InMemorySourceStore()
+    original = store.add(
+        make_card(1, doi="10.1000/dup.auth.1", url="https://example.org/dup/1"),
+        role=AgentRole.RESEARCHER,
+    )
+    assert original.verification is VerificationStatus.UNKNOWN
+
+    # Attempting to promote via DOI duplicate with role=None or non-validator fails
+    promoted_by_doi = make_card(
+        2,
+        doi="https://doi.org/10.1000/DUP.AUTH.1",
+        url="https://example.org/dup/1",
+        verification=VerificationStatus.VERIFIED,
+    )
+    mismatch_by_id = make_card(
+        1,
+        doi="10.1000/dup.auth.1",
+        url="https://example.org/dup/1",
+        verification=VerificationStatus.MISMATCH,
+    )
+    for forbidden_role in (None, AgentRole.RESEARCHER, AgentRole.WRITER, AgentRole.REVIEWER):
+        with pytest.raises(SourceVerificationError):
+            store.add(promoted_by_doi, role=forbidden_role)
+        with pytest.raises(SourceVerificationError):
+            store.add(mismatch_by_id, role=forbidden_role)
+
+    # Stored card remains UNKNOWN after rejected merge attempts
+    assert store.require(original.id).verification is VerificationStatus.UNKNOWN
+
+    # Explicit AgentRole.VALIDATOR is permitted to promote via duplicate merge
+    merged = store.add(promoted_by_doi, role=AgentRole.VALIDATOR)
+    assert merged.id == original.id
+    assert merged.verification is VerificationStatus.VERIFIED
 
 
 def test_researcher_reingest_never_downgrades_verified_card() -> None:
@@ -141,6 +199,11 @@ def test_researcher_reingest_never_downgrades_verified_card() -> None:
     merged = store.add(re_emitted, role=AgentRole.RESEARCHER)
     assert merged.id == card.id
     assert merged.verification is VerificationStatus.VERIFIED
+
+    # Re-ingesting an unknown duplicate with role=None also preserves verified status
+    merged_no_role = store.add(re_emitted, role=None)
+    assert merged_no_role.id == card.id
+    assert merged_no_role.verification is VerificationStatus.VERIFIED
 
 
 def test_conflicting_card_with_same_id_is_rejected() -> None:

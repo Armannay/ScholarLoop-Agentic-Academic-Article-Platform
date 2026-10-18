@@ -86,10 +86,10 @@ class SourceStore(Protocol):
         source_id: str,
         verification: VerificationStatus,
         *,
-        role: AgentRole = AgentRole.VALIDATOR,
+        role: AgentRole | None = None,
         evidence: str | None = None,
     ) -> SourceCard:
-        """Update the verification state of a card (validator only)."""
+        """Update the verification state of a card (explicit validator role only)."""
         ...
 
     def verified_citation_ratio(
@@ -103,7 +103,12 @@ class SourceStore(Protocol):
 class InMemorySourceStore:
     """In-memory :class:`SourceStore` with DOI/URL deduplication and validator guards."""
 
-    def __init__(self, cards: Iterable[SourceCard | Mapping[str, Any]] | None = None) -> None:
+    def __init__(
+        self,
+        cards: Iterable[SourceCard | Mapping[str, Any]] | None = None,
+        *,
+        role: AgentRole | None = None,
+    ) -> None:
         self._cards: dict[str, SourceCard] = {}
         self._by_doi: dict[str, str] = {}
         self._by_url: dict[str, str] = {}
@@ -111,7 +116,7 @@ class InMemorySourceStore:
 
         if cards is not None:
             for item in cards:
-                self.add(item, role=AgentRole.VALIDATOR)
+                self.add(item, role=role)
 
     def __len__(self) -> int:
         """Number of unique cards in the store."""
@@ -145,15 +150,15 @@ class InMemorySourceStore:
         validated = self._coerce_card(card)
 
         if (
-            role is not None
+            validated.verification is not VerificationStatus.UNKNOWN
             and role is not AgentRole.VALIDATOR
-            and validated.verification is not VerificationStatus.UNKNOWN
         ):
+            role_label = role.value if isinstance(role, AgentRole) else "none"
             raise SourceVerificationError(
-                f"role '{role.value}' may not set verification={validated.verification.value!r}; "
-                "only the validator may verify or flag a SourceCard",
+                f"role '{role_label}' may not set verification={validated.verification.value!r}; "
+                "only an explicit validator role may verify or flag a SourceCard",
                 source_id=validated.id,
-                role=role.value,
+                role=role_label,
                 verification=validated.verification.value,
             )
 
@@ -205,23 +210,24 @@ class InMemorySourceStore:
         source_id: str,
         verification: VerificationStatus,
         *,
-        role: AgentRole = AgentRole.VALIDATOR,
+        role: AgentRole | None = None,
         evidence: str | None = None,
     ) -> SourceCard:
-        """Set ``verification`` on ``source_id`` (restricted to ``AgentRole.VALIDATOR``).
+        """Set ``verification`` on ``source_id`` (restricted to explicit ``AgentRole.VALIDATOR``).
 
         Raises:
-            SourceVerificationError: called by a role other than ``validator``, or
+            SourceVerificationError: called without an explicit ``validator`` role, or
                 ``verified`` was requested with blank ``evidence`` when ``evidence``
                 was explicitly passed as an empty string.
             SourceNotFoundError: ``source_id`` does not exist.
         """
         if role is not AgentRole.VALIDATOR:
+            role_label = role.value if isinstance(role, AgentRole) else "none"
             raise SourceVerificationError(
-                f"role '{role.value}' cannot change source verification; "
-                "only the validator may set verification status",
+                f"role '{role_label}' cannot change source verification; "
+                "only an explicit validator role may set verification status",
                 source_id=source_id,
-                role=role.value,
+                role=role_label,
             )
         if evidence is not None and not evidence.strip():
             raise SourceVerificationError(
@@ -359,11 +365,21 @@ class InMemorySourceStore:
         role: AgentRole | None,
     ) -> SourceCard:
         """Keep the existing card's canonical ULID and preserve verified status."""
-        verification = existing.verification
         if (
-            role in (None, AgentRole.VALIDATOR)
-            and incoming.verification is not VerificationStatus.UNKNOWN
+            incoming.verification is not VerificationStatus.UNKNOWN
+            and role is not AgentRole.VALIDATOR
         ):
+            role_label = role.value if isinstance(role, AgentRole) else "none"
+            raise SourceVerificationError(
+                f"role '{role_label}' may not promote duplicate source {existing.id!r} "
+                f"to verification={incoming.verification.value!r}",
+                source_id=existing.id,
+                role=role_label,
+                verification=incoming.verification.value,
+            )
+
+        verification = existing.verification
+        if role is AgentRole.VALIDATOR and incoming.verification is not VerificationStatus.UNKNOWN:
             verification = incoming.verification
 
         return existing.model_copy(

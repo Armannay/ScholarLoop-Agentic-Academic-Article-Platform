@@ -287,6 +287,49 @@ def test_jsonl_checkpoint_round_trip(tmp_path: Path) -> None:
         InMemoryLedger.from_jsonl(tmp_path / "missing.jsonl")
 
 
+def test_jsonl_append_failure_does_not_mutate_memory_and_allows_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If persisting a JSONL line fails, in-memory state stays clean and retry succeeds."""
+    jsonl_path = tmp_path / "run" / "ledger.jsonl"
+    ledger = InMemoryLedger(path=jsonl_path)
+
+    first = make_entry(1, iteration=1)
+    ledger.append(first)
+    assert len(ledger) == 1
+    assert ledger.latest_iteration == 1
+    baseline_bytes = jsonl_path.read_bytes()
+
+    second = make_entry(2, iteration=2)
+    original_open = Path.open
+
+    def failing_open(self: Path, *args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+        if self == jsonl_path and args and args[0] == "a":
+            raise OSError("simulated disk full during JSONL append")
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", failing_open)
+
+    with pytest.raises(LedgerError, match="failed to persist ChangeEntry") as excinfo:
+        ledger.append(second)
+    assert excinfo.value.code == "ledger_error"
+
+    # In-memory state and on-disk file must not retain the failed entry
+    assert len(ledger) == 1
+    assert ledger.get(second.id) is None
+    assert ledger.latest_iteration == 1
+    assert jsonl_path.read_bytes() == baseline_bytes
+
+    # Restoring normal I/O allows retrying the exact same entry without DuplicateEntryError
+    monkeypatch.undo()
+    stored_second = ledger.append(second)
+    assert stored_second == second
+    assert len(ledger) == 2
+    assert ledger.latest_iteration == 2
+    assert InMemoryLedger.from_jsonl(jsonl_path).entries() == [first, second]
+
+
 def test_extend_mapping_coercion_and_invalid_payloads() -> None:
     """extend() accepts mappings and ChangeEntry objects; invalid payloads raise LedgerError."""
     ledger = InMemoryLedger(enforce_monotonic_iter=False)
