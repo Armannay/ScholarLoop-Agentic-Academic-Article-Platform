@@ -96,5 +96,6 @@ markers = [
   "contracts: contract round-trip and validation tests",
   "config: policy/rubric loader tests",
   "providers: provider interface and MockProvider tests",
+  "article: article store, patch application, versioning and assembly tests",
   "api: FastAPI surface tests",
 ]

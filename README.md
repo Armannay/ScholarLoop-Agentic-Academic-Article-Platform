@@ -37,8 +37,9 @@ backend/app/
   core/        settings, policies, rubric, ids, hashing, redaction, logging
   providers/   LLMProvider Protocol, ProviderError family, MockProvider
   api/         FastAPI: health, effective config, contract schemas
-  accounts/ governor/ memory/ article/ agents/ planner/ orchestrator/   # next steps
-backend/tests/ contract round-trip, config loaders, MockProvider, API, secret scan
+  article/     section store, patch application, versioning, snapshots, assembly
+  accounts/ governor/ memory/ agents/ planner/ orchestrator/             # next steps
+backend/tests/ contracts, config loaders, MockProvider, article store, API, secret scan
 config/        policies.yaml (loop knobs), rubric.yaml (gates, criteria, sections)
 rules/         root.rules.md + agents/<role>.rules.md   (<= 400 tokens each)
 frontend/      React + Vite + TypeScript status console
@@ -57,6 +58,8 @@ docs/          ARCHITECTURE.md, DECISIONS.md, schemas/
 ## Status
 
 Foundation complete: contracts, policy/rubric config, rules, provider interface with
-MockProvider, API health/config surface, CI. Next: accounts (encrypted store), the
-governor, the ledger/digest, the article store with patch application, the five agents,
-the Planner, and the loop controller.
+MockProvider, API health/config surface, CI, and the article store (independently
+versioned sections, patch application with optimistic concurrency, snapshots with a
+best-so-far pointer, markdown assembly, erosion signals). Next: accounts (encrypted
+store), the governor, the ledger/digest, the five agents, the Planner, and the loop
+controller.
