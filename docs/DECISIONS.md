@@ -62,3 +62,13 @@ Never edit a merged ADR: supersede it with a new one and link both ways.
 - **Decision:** One Pydantic v2 module per contract in `backend/app/contracts/`, `extra="forbid"`, `schema_version: Literal[1]` on documents, string ULIDs, UTC timestamps. `make schemas` exports JSON Schemas to `docs/schemas/`, and CI fails if the committed schemas drift from the models. Contract tests assert round-trip losslessness, unknown-field rejection and the registry's completeness.
 - **Alternatives:** JSON Schema as the source of truth (rejected: loses Python typing, so `mypy --strict` cannot help); protobuf/OpenAPI-first (rejected: heavy for a four-person build, and prompts want plain JSON Schema).
 - **Consequences:** one definition serves runtime validation, IDE autocompletion, documentation and the schemas handed to models. Cost: contract changes must be deliberate — a field rename is a breaking change that requires a CONTRACT-CHANGE-REQUEST and a re-export.
+
+## ADR-0006 — Fix the loop-decision precedence; the Planner's verdict is advice
+
+- **Status:** accepted
+- **Date:** 2026-10-19
+- **Context:** The controller sees three kinds of signal at once - human input, measured quality (gates, Q, erosion), and the Planner's opinion - and they routinely disagree: an acceptable article can be out of budget, a plateauing one can still have failing gates, and the Planner may ask for more polish after the minimum is met.
+- **Decision:** A fixed precedence decides every iteration: `STOP_USER` > `ASK_USER` (`needs_user_input`) > `STOP_ERRORS` > acceptable quality (`OFFER_FINISH`: all gates pass, `Q >= q_min`, no high-severity issue) > `STOP_BUDGET` > `STOP_EROSION` > `CONTINUE`. An acceptable article is offered even when budget or erosion fires, with those codes recorded in `reasons`. The `Verdict` can delay an offer (missing minimum work) but never create one. One iteration is one full plan pass; parallel execution applies its patches serially in plan order, and `STOP_EROSION` restores the best-Q snapshot.
+- **Alternatives:** letting the verdict overrule measurements (rejected: an LLM opinion must not finish an article with a failing gate); weighing detectors into one score (rejected: not auditable - `LoopDecision.evidence` must reconstruct why); stopping erosion even when quality is acceptable (rejected: destroys a deliverable the user could accept).
+- **Consequences:** every run's ending is reconstructible from `decisions[]`, and threshold tuning stays policy work. Cost: a `continue` verdict after quality is met can keep the loop spending until budget or erosion ends it - bounded, by design, by the same precedence.
+

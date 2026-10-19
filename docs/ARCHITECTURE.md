@@ -27,8 +27,9 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 | Orchestrator | `app/orchestrator/` | the loop: state machine, scheduling, decision |
 | API | `app/api/` | FastAPI surface (`/api/health`, `/api/config`, contracts) |
 
-`contracts`, `core`, `providers`, `scripts`, `api` and `article` exist today; the rest
-are the interfaces this foundation was built to accept.
+`contracts`, `core`, `providers`, `accounts`, `scripts`, `api`, `article`, `memory`,
+`planner` and `orchestrator` exist today; `governor` and `agents` land behind the
+seams those modules already consume.
 
 ### Article store (implemented)
 
@@ -47,12 +48,33 @@ document (body, `version`, `sha256`, words, citations, status).
   checkpoint - that is the loop's rollback path out of erosion.
 * **Erosion signals.** `recurrence.py` reports a body that round-tripped
   (`hash_recurred`) and edits that measured no gain (`edits_without_gain`).
-Only `contracts`, `core`, `providers`, `accounts`, `scripts` and `api` exist today;
-the rest are the interfaces this foundation was built to accept. The account store
-(`app/accounts/`) holds provider keys encrypted at rest (AES-GCM envelope,
-`APP_MASTER_KEY`), resolves them at call time through `app/providers/pool.py`, and
-ships live adapters for Anthropic (Claude Console keys for the Planner) and
-OpenAI-compatible services (OpenRouter et al.).
+The account store (`app/accounts/`) holds provider keys encrypted at rest (AES-GCM
+envelope, `APP_MASTER_KEY`), resolves them at call time through
+`app/providers/pool.py`, and ships live adapters for Anthropic (Claude Console keys
+for the Planner) and OpenAI-compatible services (OpenRouter et al.).
+
+### Planner and orchestrator (implemented)
+
+* **Planner** (`app/planner/`). One JSON-schema call per `Plan`/`Verdict`, against a
+  direct provider or the pool. The provider must be Anthropic or the mock; the digest
+  and the rendered prompt are refused (never truncated) over their caps; a bad reply
+  earns exactly one repair carrying only the rejection codes. Plans are re-checked
+  beyond the contract: dictated version, mandatory roles, rubric section ids only,
+  task budgets summing within the iteration cap. Planner tokens are accumulated for
+  run accounting because the Planner writes no ledger rows.
+* **Controller** (`app/orchestrator/controller.py`). Pure arithmetic with a fixed
+  precedence - user stop, `ASK_USER`, error streak, acceptable quality
+  (`OFFER_FINISH`), budget, erosion, continue. Erosion is five detectors over the
+  Q/token history (plateau, regression, oscillation, diminishing returns, issue
+  churn) plus `recurrence.py`'s round-tripped-body signal. The `Verdict` is advice:
+  it can delay an offer, never create one.
+* **Orchestrator** (`app/orchestrator/run.py`). One iteration is one full plan pass:
+  dependency waves execute under `max_parallel`, patches then apply serially in plan
+  order so a wave is deterministic. Nothing returned is trusted - ownership, task
+  budgets and the source-verification guard are re-checked, stale patches are
+  recorded `failed` and never forced, and an executor raising becomes a ledger entry,
+  not a crash. Each measured iteration snapshots the article; a `STOP_EROSION` run
+  restores the best snapshot. Concrete agents plug in behind `AgentExecutor`.
 
 ## State machine
 
@@ -75,6 +97,7 @@ INTAKE ──► PLANNING ──► EXECUTING ──► VALIDATING ──► DEC
 * **CHECKPOINT** — digest compaction, artifact snapshot; loop continues.
 * **REPLANNING** — the Planner re-plans from the digest (version + 1).
 * **DONE / STOPPED** — terminal. `STOPPED` covers erosion, budget, errors and the user.
+  `ASK_USER` instead pauses the run (`PAUSED`) with the agents' questions attached.
 
 Every transition is decided by deterministic rules over numbers, and every decision
 is recorded as a `LoopDecision` with machine-readable `reasons` and `evidence`.
