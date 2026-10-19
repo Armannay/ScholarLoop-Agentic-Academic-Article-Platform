@@ -27,8 +27,8 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 | Orchestrator | `app/orchestrator/` | the loop: state machine, scheduling, decision |
 | API | `app/api/` | FastAPI surface (`/api/health`, `/api/config`, contracts) |
 
-`contracts`, `core`, `providers`, `scripts`, `api` and `article` exist today; the rest
-are the interfaces this foundation was built to accept.
+`contracts`, `core`, `accounts`, `providers`, `memory`, `article`, `planner`, `scripts`
+and `api` exist today; the rest are the interfaces this foundation was built to accept.
 
 ### Article store (implemented)
 
@@ -47,8 +47,20 @@ document (body, `version`, `sha256`, words, citations, status).
   checkpoint - that is the loop's rollback path out of erosion.
 * **Erosion signals.** `recurrence.py` reports a body that round-tripped
   (`hash_recurred`) and edits that measured no gain (`edits_without_gain`).
-Only `contracts`, `core`, `providers`, `accounts`, `scripts` and `api` exist today;
-the rest are the interfaces this foundation was built to accept. The account store
+
+### Planner (implemented)
+
+`app/planner/` is the planning-only LLM layer (ADR-0008): `plan_initial`, `replan`
+and `evaluate` over `BindingRole.PLANNER`, with no surface that can return article
+text. Prompts are cache-ordered (system + rubric, then brief, states, one-line
+source refs, report, digest - all interpolated text fenced as data); the server
+stamps plan `version` and re-mints ULID task ids from the model's `T1...` labels,
+validates role coverage, known section/source ids and the budget sum, and spends at
+most one context-free repair call listing every issue before raising
+`PlannerOutputError`. Verdicts pass deterministic report guardrails (failing gates,
+`q_min`, high-severity issues override a `finish`); `fallback.py` provides an opt-in
+rubric template plan. Over-budget prompts are refused with a part breakdown, never
+truncated. The account store
 (`app/accounts/`) holds provider keys encrypted at rest (AES-GCM envelope,
 `APP_MASTER_KEY`), resolves them at call time through `app/providers/pool.py`, and
 ships live adapters for Anthropic (Claude Console keys for the Planner) and
