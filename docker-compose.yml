@@ -17,8 +17,10 @@ services:
       SCHOLARLOOP_ENV: docker
       SCHOLARLOOP_LOG_LEVEL: INFO
       SCHOLARLOOP_DATABASE_URL: sqlite+pysqlite:////data/scholarloop.sqlite3
-      # No secret is baked into the image: pass it from your shell at runtime.
-      SCHOLARLOOP_SECRET_KEY: ${SCHOLARLOOP_SECRET_KEY:-}
+      # No secret is baked into the image: pass the account-store master key from
+      # your shell at runtime. Without it the store stays sealed (health says so).
+      APP_MASTER_KEY: ${APP_MASTER_KEY:-}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-}
       SCHOLARLOOP_CORS_ORIGINS: http://localhost:5173
     volumes:
       - ./backend:/repo/backend:ro

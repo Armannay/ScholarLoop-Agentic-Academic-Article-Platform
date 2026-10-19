@@ -22,12 +22,15 @@ dependencies = [
   "httpx==0.28.1",
   "PyYAML==6.0.3",
   "cryptography==50.0.2",
+  "argon2-cffi==25.1.0",
+  "PyJWT==2.15.1",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest==9.1.1",
   "pytest-asyncio==1.4.0",
+  "respx==0.23.1",
   "ruff==0.17.0",
   "mypy==2.4.0",
   "types-PyYAML==6.0.12.20260906",
@@ -98,4 +101,7 @@ markers = [
   "providers: provider interface and MockProvider tests",
   "article: article store, patch application, versioning and assembly tests",
   "api: FastAPI surface tests",
+  "accounts: account store, crypto, auth and bindings tests",
+  "security: secret-leak and redaction tests",
+  "migrations: alembic schema tests",
 ]

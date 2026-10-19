@@ -17,19 +17,36 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import func, select
 
 from app import CONTRACT_VERSION, __version__
+from app.accounts.crypto import (
+    EnvelopeEncryptor,
+    MasterKey,
+    configure_master_key,
+    get_master_key,
+    install_key_redaction,
+)
+from app.accounts.db import create_session_factory, init_db, make_engine
+from app.accounts.models import AccountRow
+from app.accounts.service import SqlAccountResolver, SqlUsageSink
+from app.api.routers import accounts as accounts_router
+from app.api.routers import agents as agents_router
+from app.api.routers import auth as auth_router
 from app.api.routers import config as config_router
 from app.api.routers import health as health_router
 from app.core.errors import ConfigError, ScholarLoopError
 from app.core.ids import new_ulid
 from app.core.logging import configure_logging, get_logger
 from app.core.policies import load_policies
+from app.core.redaction import redact
 from app.core.rubric import load_rubric
 from app.core.settings import Settings, get_settings
 from app.providers.errors import ProviderError
+from app.providers.pool import ProviderPool
 
 __all__ = ["app", "create_app"]
 
@@ -41,6 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Load config into app state; record failures instead of crashing the process."""
     settings: Settings = app.state.settings
     configure_logging(level=settings.log_level)
+    install_key_redaction()
     app.state.config_errors = {}
 
     overrides = (
@@ -76,9 +94,40 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.config_errors["rubric"] = exc.message
         logger.error("rubric failed to load: %s", exc.message)
 
-    # Accounts live in the encrypted store; the count is all the API needs at boot.
-    app.state.accounts_configured = 0
-    yield
+    # Account store: engine + schema + the provider pool that resolves keys per call.
+    engine = make_engine(settings.database_url)
+    init_db(engine)
+    app.state.engine = engine
+    app.state.session_factory = create_session_factory(engine)
+    raw_master_key = settings.master_key or settings.secret_key
+    try:
+        # Settings (including .env) is the first source; a bare environment variable
+        # still works because configure_master_key(None) leaves lookup to MasterKey.
+        configure_master_key(
+            MasterKey.from_string(raw_master_key.get_secret_value())
+            if raw_master_key is not None
+            else None
+        )
+        app.state.encryptor = EnvelopeEncryptor(get_master_key())
+    except ConfigError as exc:
+        # Boot without a master key: health still answers, account ops say why.
+        # health reports this as providers.account_store_ready=false (not a config error).
+        app.state.encryptor = None
+        logger.warning("account store sealed: %s", exc.message)
+    app.state.pool = ProviderPool(
+        SqlAccountResolver(app.state.session_factory, app.state.encryptor),
+        usage_sink=SqlUsageSink(app.state.session_factory),
+    )
+    with app.state.session_factory() as session:
+        app.state.accounts_configured = int(
+            session.scalar(select(func.count()).select_from(AccountRow)) or 0
+        )
+    logger.info("account store ready", extra={"accounts": app.state.accounts_configured})
+    try:
+        yield
+    finally:
+        configure_master_key(None)
+        await app.state.pool.aclose()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -127,8 +176,49 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             status = 429
         return JSONResponse(status_code=status, content={"error": exc.to_dict()})
 
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+        """422 without ever echoing the submitted value.
+
+        FastAPI's default body includes ``input`` and ``ctx`` for every error, which
+        turns a rejected oversized ``api_key`` into a response carrying the key. We
+        keep the actionable location and message and drop the value entirely.
+        """
+        errors: list[dict[str, str]] = []
+        for item in exc.errors():
+            location = ".".join(str(part) for part in item.get("loc", ())) or "<body>"
+            message = str(item.get("msg", "invalid"))
+            if location.endswith("api_key"):
+                message = "invalid api_key"
+            errors.append(
+                {
+                    "loc": location,
+                    "msg": redact(message),
+                    "type": str(item.get("type", "value_error")),
+                }
+            )
+        if any(error["loc"].endswith("api_key") for error in errors):
+            summary = "invalid api_key"
+        else:
+            summary = "; ".join(f"{error['loc']}: {error['msg']}" for error in errors[:4])
+            if len(errors) > 4:
+                summary += f" (+{len(errors) - 4} more)"
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": "validation_error",
+                    "message": redact(summary),
+                    "context": {"errors": errors},
+                }
+            },
+        )
+
     app.include_router(health_router.router)
     app.include_router(config_router.router)
+    app.include_router(auth_router.router)
+    app.include_router(accounts_router.router)
+    app.include_router(agents_router.router)
 
     @app.get("/", include_in_schema=False)
     def root() -> dict[str, str]:

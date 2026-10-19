@@ -47,6 +47,12 @@ document (body, `version`, `sha256`, words, citations, status).
   checkpoint - that is the loop's rollback path out of erosion.
 * **Erosion signals.** `recurrence.py` reports a body that round-tripped
   (`hash_recurred`) and edits that measured no gain (`edits_without_gain`).
+Only `contracts`, `core`, `providers`, `accounts`, `scripts` and `api` exist today;
+the rest are the interfaces this foundation was built to accept. The account store
+(`app/accounts/`) holds provider keys encrypted at rest (AES-GCM envelope,
+`APP_MASTER_KEY`), resolves them at call time through `app/providers/pool.py`, and
+ships live adapters for Anthropic (Claude Console keys for the Planner) and
+OpenAI-compatible services (OpenRouter et al.).
 
 ## State machine
 

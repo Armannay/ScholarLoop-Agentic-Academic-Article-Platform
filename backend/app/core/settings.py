@@ -36,7 +36,12 @@ class Settings(BaseSettings):
     #: branches on the dialect.
     database_url: str = "sqlite+pysqlite:///./scholarloop.sqlite3"
 
-    #: Key material for the encrypted account store. Empty => live providers disabled.
+    #: Master key for the encrypted account store. The alias is exact (no
+    #: SCHOLARLOOP_ prefix), so both the process environment and ``.env`` work.
+    #: ``MasterKey.from_env`` additionally accepts SCHOLARLOOP_MASTER_KEY.
+    master_key: SecretStr | None = Field(default=None, alias="APP_MASTER_KEY")
+
+    #: Legacy alias kept so older call sites still construct. Not used by the store.
     secret_key: SecretStr | None = None
 
     #: Paths are resolved against ``root_dir`` so behaviour does not depend on CWD.
@@ -74,10 +79,10 @@ class Settings(BaseSettings):
             raise ValueError(f"log_level must be one of {sorted(allowed)}, got {value!r}")
         return upper
 
-    @field_validator("secret_key", mode="before")
+    @field_validator("master_key", "secret_key", mode="before")
     @classmethod
     def _blank_secret_is_none(cls, value: object) -> object:
-        """``SCHOLARLOOP_SECRET_KEY=`` in a .env file means 'not configured', not ''."""
+        """``APP_MASTER_KEY=`` in a .env file means 'not configured', not ''."""
         if isinstance(value, str) and not value.strip():
             return None
         return value
@@ -118,8 +123,9 @@ class Settings(BaseSettings):
 
     @property
     def live_providers_enabled(self) -> bool:
-        """True only when a secret key is configured, i.e. the account store is usable."""
-        return self.secret_key is not None and bool(self.secret_key.get_secret_value())
+        """True when a master key is configured, i.e. the account store can open keys."""
+        key = self.master_key or self.secret_key
+        return key is not None and bool(key.get_secret_value())
 
 
 @lru_cache(maxsize=1)

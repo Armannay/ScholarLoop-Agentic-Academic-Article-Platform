@@ -24,11 +24,13 @@ def health(request: Request, settings: SettingsDep) -> HealthResponse:
     live_adapters = sorted(
         provider.value for provider in SUPPORTED_PROVIDERS if provider.value != "mock"
     )
+    store_ready = getattr(request.app.state, "encryptor", None) is not None
     providers = ProviderStatus(
         mock=True,
         live_adapters_implemented=live_adapters,
         accounts_configured=int(getattr(request.app.state, "accounts_configured", 0)),
-        live_providers_enabled=settings.live_providers_enabled,
+        live_providers_enabled=store_ready,
+        account_store_ready=store_ready,
     )
 
     return HealthResponse(

@@ -39,8 +39,31 @@ def test_health_reports_loaded_config(client: TestClient) -> None:
     assert body["rubric_loaded"] is True
     assert body["contract_version"] == CONTRACT_VERSION
     assert body["providers"]["mock"] is True
-    assert body["providers"]["live_adapters_implemented"] == []
+    assert body["providers"]["live_adapters_implemented"] == [
+        "anthropic",
+        "openai_compatible",
+    ]
+    # No APP_MASTER_KEY in this fixture: the account store is sealed, not broken.
+    assert body["providers"]["account_store_ready"] is False
     assert body["config_errors"] == {}
+
+
+def test_app_boots_with_master_key_from_dotenv(
+    repo_root: Path, db_url: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``cp .env.example .env`` must work: APP_MASTER_KEY is read from the file."""
+    monkeypatch.delenv("APP_MASTER_KEY", raising=False)
+    monkeypatch.delenv("SCHOLARLOOP_MASTER_KEY", raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text("APP_MASTER_KEY=" + "ab" * 32 + "\n", encoding="utf-8")
+    settings = Settings(_env_file=env_file, root_dir=repo_root, env="test", database_url=db_url)
+    with TestClient(create_app(settings)) as dotenv_client:
+        body = dotenv_client.get("/api/health").json()
+        assert body["providers"]["account_store_ready"] is True
+        registered = dotenv_client.post(
+            "/api/auth/register", json={"email": "dotenv@example.org", "password": "long-enough"}
+        )
+        assert registered.status_code == 201
 
 
 def test_health_is_secret_free(client: TestClient) -> None:
@@ -100,6 +123,7 @@ def test_config_reports_where_it_read_from(client: TestClient, settings: Setting
 def test_config_honours_project_overrides(repo_root: Path) -> None:
     """A project override changes the numbers the API reports."""
     settings = Settings(
+        _env_file=None,
         root_dir=repo_root,
         env="test",
         project_overrides_path=Path("config/projects.example.yaml"),
@@ -118,7 +142,7 @@ def test_broken_config_degrades_instead_of_crashing(tmp_path: Path, repo_root: P
     bad_policies = tmp_path / "policies.yaml"
     bad_policies.write_text("schema_version: 1\npolicies:\n  q_minn: 60\n", encoding="utf-8")
 
-    settings = Settings(root_dir=repo_root, env="test", policies_path=bad_policies)
+    settings = Settings(_env_file=None, root_dir=repo_root, env="test", policies_path=bad_policies)
     with TestClient(create_app(settings)) as client:
         health = client.get("/api/health")
         assert health.status_code == 200
@@ -180,7 +204,7 @@ def test_cors_allows_the_vite_dev_server(client: TestClient) -> None:
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
-def test_account_endpoint_does_not_exist_yet(client: TestClient) -> None:
-    """Pinned so the next step notices it must add the account surface deliberately."""
-    assert client.get("/api/accounts").status_code == 404
-    assert sample_ulid(3)  # ids are available for the payloads that endpoint will take
+def test_account_surface_exists_and_is_protected(client: TestClient) -> None:
+    """The account surface ships in this step: present, and auth-only."""
+    assert client.get("/api/accounts").status_code == 401
+    assert sample_ulid(3)  # ids are available for account payloads

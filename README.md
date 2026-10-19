@@ -17,9 +17,11 @@ Start here:
 ## Quick start
 
 ```bash
+cp .env.example .env    # fill in APP_MASTER_KEY (the account store stays sealed without it)
 make install            # create .venv and install pinned deps
 make check              # ruff + mypy --strict + pytest  -> the gate every step passes
 make schemas            # export docs/schemas from the contracts
+make migrate            # apply the account-store schema (alembic)
 make run                # API on http://localhost:8000  (docs at /docs)
 
 make frontend-install   # npm ci in frontend/
@@ -40,6 +42,12 @@ backend/app/
   article/     section store, patch application, versioning, snapshots, assembly
   accounts/ governor/ memory/ agents/ planner/ orchestrator/             # next steps
 backend/tests/ contracts, config loaders, MockProvider, article store, API, secret scan
+  providers/   LLMProvider Protocol, ProviderError family, MockProvider, live
+               adapters (Anthropic, OpenAI-compatible) and the account pool
+  accounts/    encrypted account store, argon2+JWT auth, bindings, usage, audit
+  api/         FastAPI: health, config, contracts, auth, accounts, agent bindings
+  governor/ memory/ article/ agents/ planner/ orchestrator/   # next steps
+backend/tests/ contracts, config, MockProvider, API, account store, adapters, pool
 config/        policies.yaml (loop knobs), rubric.yaml (gates, criteria, sections)
 rules/         root.rules.md + agents/<role>.rules.md   (<= 400 tokens each)
 frontend/      React + Vite + TypeScript status console
@@ -50,7 +58,7 @@ docs/          ARCHITECTURE.md, DECISIONS.md, schemas/
 
 1. `make check` must be green before a change is considered done.
 2. Tests and CI use `MockProvider` only — never a live provider call.
-3. No secrets anywhere: keys live in the encrypted account store; `.env.example` holds placeholders; CI scans the tree and the logging handler redacts.
+3. No secrets anywhere: provider keys live in the encrypted account store (`APP_MASTER_KEY` protects them) and are write-only through the API; `.env.example` holds placeholders; CI scans the tree and the logging handlers redact.
 4. Contracts are frozen for the duration of a step: send a CONTRACT-CHANGE-REQUEST instead of editing `backend/app/contracts/`.
 5. Third-party API details go behind an adapter and carry a `# VERIFY` marker.
 6. Bounded by design: the digest ≤ 2,000 tokens, `summary` and `snippet` ≤ 60 words, patches not rewrites.
@@ -63,3 +71,10 @@ versioned sections, patch application with optimistic concurrency, snapshots wit
 best-so-far pointer, markdown assembly, erosion signals). Next: accounts (encrypted
 store), the governor, the ledger/digest, the five agents, the Planner, and the loop
 controller.
+Foundation and accounts complete: contracts, policy/rubric config, rules, API, CI;
+encrypted runtime account store with per-user ownership, bindings (planner included),
+usage roll-ups and an append-only audit trail; live Anthropic and OpenAI-compatible
+adapters behind the frozen `LLMProvider` protocol; and a provider pool that resolves
+accounts at call time with dedicated / round_robin / failover strategies and a circuit
+breaker. Next: the governor, the ledger/digest, the article store with patch
+application, the five agents, the Planner, and the loop controller.

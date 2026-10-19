@@ -25,6 +25,10 @@ class ProviderStatus(Contract):
     live_adapters_implemented: list[str] = Field(default_factory=list)
     accounts_configured: int = Field(default=0, ge=0)
     live_providers_enabled: bool = False
+    account_store_ready: bool = Field(
+        default=False,
+        description="False when APP_MASTER_KEY is missing: the store is sealed.",
+    )
 
 
 class HealthResponse(Contract):
