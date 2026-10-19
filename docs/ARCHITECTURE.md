@@ -27,6 +27,26 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 | Orchestrator | `app/orchestrator/` | the loop: state machine, scheduling, decision |
 | API | `app/api/` | FastAPI surface (`/api/health`, `/api/config`, contracts) |
 
+`contracts`, `core`, `providers`, `scripts`, `api` and `article` exist today; the rest
+are the interfaces this foundation was built to accept.
+
+### Article store (implemented)
+
+`app/article/` holds the article itself: every section is an independently versioned
+document (body, `version`, `sha256`, words, citations, status).
+
+* **Patches, not rewrites.** `patch.py` applies the four op verbs with exact, exactly-once
+  matching; a miss raises `PatchRejected` carrying one bounded repair hint per offending
+  op, so an agent needs a single repair call, not one per error.
+* **Optimistic concurrency.** `base_version` must equal the section head or the store
+  raises `StalePatch`; the patch is discarded, never merged. Per-section async locks
+  (`locks.py`) serialise same-section writers, take multi-section batches in one global
+  order, and time out instead of hanging an iteration.
+* **Append-only history.** Versions are never edited. `restore(snapshot_id)` appends new
+  versions carrying the frozen bodies, and `best_snapshot()` returns the highest-Q
+  checkpoint - that is the loop's rollback path out of erosion.
+* **Erosion signals.** `recurrence.py` reports a body that round-tripped
+  (`hash_recurred`) and edits that measured no gain (`edits_without_gain`).
 Only `contracts`, `core`, `providers`, `accounts`, `scripts` and `api` exist today;
 the rest are the interfaces this foundation was built to accept. The account store
 (`app/accounts/`) holds provider keys encrypted at rest (AES-GCM envelope,

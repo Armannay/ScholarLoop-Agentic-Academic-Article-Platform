@@ -37,6 +37,11 @@ Postgres instead of SQLite: `docker compose --profile postgres up`.
 backend/app/
   contracts/   Pydantic v2 wire format (extra=forbid, schema_version=1)
   core/        settings, policies, rubric, ids, hashing, redaction, logging
+  providers/   LLMProvider Protocol, ProviderError family, MockProvider
+  api/         FastAPI: health, effective config, contract schemas
+  article/     section store, patch application, versioning, snapshots, assembly
+  accounts/ governor/ memory/ agents/ planner/ orchestrator/             # next steps
+backend/tests/ contracts, config loaders, MockProvider, article store, API, secret scan
   providers/   LLMProvider Protocol, ProviderError family, MockProvider, live
                adapters (Anthropic, OpenAI-compatible) and the account pool
   accounts/    encrypted account store, argon2+JWT auth, bindings, usage, audit
@@ -60,6 +65,12 @@ docs/          ARCHITECTURE.md, DECISIONS.md, schemas/
 
 ## Status
 
+Foundation complete: contracts, policy/rubric config, rules, provider interface with
+MockProvider, API health/config surface, CI, and the article store (independently
+versioned sections, patch application with optimistic concurrency, snapshots with a
+best-so-far pointer, markdown assembly, erosion signals). Next: accounts (encrypted
+store), the governor, the ledger/digest, the five agents, the Planner, and the loop
+controller.
 Foundation and accounts complete: contracts, policy/rubric config, rules, API, CI;
 encrypted runtime account store with per-user ownership, bindings (planner included),
 usage roll-ups and an append-only audit trail; live Anthropic and OpenAI-compatible
