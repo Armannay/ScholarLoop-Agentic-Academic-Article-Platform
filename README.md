@@ -9,6 +9,7 @@ digest. Everything is measured in tokens and every decision is explainable.
 Start here:
 
 * [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — components, the loop's state machine, one iteration end to end.
+* [docs/TOOLS.md](docs/TOOLS.md) — the root tool catalog, per-role allowlists and the fetch egress guard.
 * [docs/DECISIONS.md](docs/DECISIONS.md) — ADR template and the first five decisions.
 * [docs/schemas/](docs/schemas/) — generated JSON Schema for every CONTRACTS v1 model.
 * [rules/root.rules.md](rules/root.rules.md) — the hard rules every agent obeys.
@@ -36,13 +37,16 @@ backend/app/
   contracts/   Pydantic v2 wire format (extra=forbid, schema_version=1)
   core/        settings, policies, rubric, ids, hashing, redaction, logging
   providers/   LLMProvider Protocol, ProviderError family, MockProvider
-  api/         FastAPI: health, effective config, contract schemas
-  accounts/ governor/ memory/ article/ agents/ planner/ orchestrator/   # next steps
+  api/         FastAPI: health, effective config, tool catalog, contract schemas
+  agents/      structured-output runtime, role registry, (concrete agents next)
+  tools/       root catalog, per-role allowlists, Crossref/fetch adapters, egress guard
+  skills/      lazy skill index, deterministic token-bounded selection
+  accounts/ governor/ memory/ article/ planner/ orchestrator/   # next steps
 backend/tests/ contract round-trip, config loaders, MockProvider, API, secret scan
 config/        policies.yaml (loop knobs), rubric.yaml (gates, criteria, sections)
 rules/         root.rules.md + agents/<role>.rules.md   (<= 400 tokens each)
 frontend/      React + Vite + TypeScript status console
-docs/          ARCHITECTURE.md, DECISIONS.md, schemas/
+docs/          ARCHITECTURE.md, DECISIONS.md, TOOLS.md, schemas/
 ```
 
 ## Working agreements
@@ -57,6 +61,7 @@ docs/          ARCHITECTURE.md, DECISIONS.md, schemas/
 ## Status
 
 Foundation complete: contracts, policy/rubric config, rules, provider interface with
-MockProvider, API health/config surface, CI. Next: accounts (encrypted store), the
-governor, the ledger/digest, the article store with patch application, the five agents,
-the Planner, and the loop controller.
+MockProvider, API health/config/tools surface, CI. Step 6 adds the root tool catalog:
+`crossref_doi`, `search_sources`, `fetch_url` (public-address-only egress, redirects
+re-checked, bounded text) and `lookup_source`, behind a fail-closed per-role allowlist.
+Next: the five concrete agents, then the Planner and the loop controller.

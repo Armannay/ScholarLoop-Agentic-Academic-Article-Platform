@@ -15,6 +15,8 @@ __all__ = [
     "HealthResponse",
     "ProviderStatus",
     "RubricSummary",
+    "ToolCatalogResponse",
+    "ToolSpecResponse",
 ]
 
 
@@ -67,3 +69,24 @@ class ContractListResponse(Contract):
     contract_version: int
     names: list[str]
     schema_url_template: str
+
+
+class ToolSpecResponse(Contract):
+    """One root tool as the console shows it: what it does, who may call it, what it needs."""
+
+    name: NonEmptyStr
+    summary: NonEmptyStr
+    roles: list[str] = Field(description="Agent roles whose allowlist contains the tool.")
+    token_cost_hint: int = Field(ge=0)
+    requires: list[str] = Field(
+        description="Dependencies the registry must be given before this tool is wired."
+    )
+
+
+class ToolCatalogResponse(Contract):
+    """Root tool catalog plus the effective per-role allowlist. No secrets, no URLs."""
+
+    tools: list[ToolSpecResponse]
+    role_allowlist: dict[str, list[str]] = Field(
+        description="role -> sorted tool names the role may see and call."
+    )

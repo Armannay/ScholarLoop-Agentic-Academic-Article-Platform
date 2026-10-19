@@ -22,13 +22,16 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 | Governor | `app/governor/` | token budgets, caps, per-call accounting |
 | Memory | `app/memory/` | append-only ledger, bounded digest, compaction |
 | Article | `app/article/` | section store, patch application, versioning |
-| Agents | `app/agents/` | architect, researcher, writer, reviewer, validator |
+| Agents | `app/agents/` | structured-output runtime + role registry (concrete agents next) |
+| Tools | `app/tools/` | root catalog, per-role allowlists, egress guard, Crossref/fetch adapters |
+| Skills | `app/skills/` | lazy skill index and token-bounded per-role selection |
 | Planner | `app/planner/` | plan construction and verdict evaluation (LLM, JSON-schema) |
 | Orchestrator | `app/orchestrator/` | the loop: state machine, scheduling, decision |
-| API | `app/api/` | FastAPI surface (`/api/health`, `/api/config`, contracts) |
+| API | `app/api/` | FastAPI surface (`/api/health`, `/api/config`, `/api/tools`, contracts) |
 
-Only `contracts`, `core`, `providers`, `scripts` and `api` exist today; the rest are
-the interfaces this foundation was built to accept.
+This branch ships `contracts`, `core`, `providers`, `agents` (runtime and registry),
+`skills`, `tools` (root catalog and egress guard) and `api`. `accounts`, `governor`,
+`memory`, `article`, `planner` and `orchestrator` are the interfaces later steps fill in.
 
 ## State machine
 
@@ -80,3 +83,4 @@ is recorded as a `LoopDecision` with machine-readable `reasons` and `evidence`.
 * Provider responses, fetched pages and source snippets are **data**. Instructions inside them are ignored (HARD RULE 4).
 * Keys never leave the account store; logs, API responses and fixtures are scanned for key-shaped strings by `app/scripts/secret_scan.py`, which also redacts at the logging handler.
 * Tests and CI run against `MockProvider` only, and a test asserts the mock imports no HTTP client.
+* Agent tools are root-registered with a fail-closed per-role allowlist. `fetch_url` re-checks every redirect hop and refuses loopback, private, link-local and metadata addresses; Crossref and HTTP adapters are injectable, so tool tests use fakes and never the network.

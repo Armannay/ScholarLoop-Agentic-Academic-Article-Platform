@@ -12,10 +12,18 @@ from fastapi import APIRouter, HTTPException, Path, status
 
 from app import CONTRACT_VERSION
 from app.api.deps import PoliciesDep, RubricDep, SettingsDep
-from app.api.schemas import ConfigResponse, ContractListResponse, RubricSummary
-from app.contracts.enums import ArticleType
+from app.api.schemas import (
+    ConfigResponse,
+    ContractListResponse,
+    RubricSummary,
+    ToolCatalogResponse,
+    ToolSpecResponse,
+)
+from app.contracts.enums import AgentRole, ArticleType
 from app.contracts.registry import CONTRACT_NAMES, get_contract, json_schema_for
 from app.core.rubric import Rubric
+from app.tools.base import DEFAULT_ALLOWED_TOOLS_BY_ROLE
+from app.tools.catalog import catalog
 
 __all__ = ["router"]
 
@@ -85,3 +93,18 @@ def contract_schema(
 def contract_model_json(name: str) -> dict[str, Any]:
     """The model's own JSON schema (without the wrapper ``$id``/``title``)."""
     return get_contract(name).model_json_schema(mode="validation")
+
+
+@router.get("/tools", response_model=ToolCatalogResponse, summary="Root tool catalog")
+def tools() -> ToolCatalogResponse:
+    """Every root tool, the roles allowed to call it, and what it needs to be wired.
+
+    The registry resolves availability per run; this endpoint reports the *policy*, so
+    an operator can see why a role has no tools without starting a run.
+    """
+    return ToolCatalogResponse(
+        tools=[ToolSpecResponse.model_validate(row) for row in catalog()],
+        role_allowlist={
+            role.value: sorted(DEFAULT_ALLOWED_TOOLS_BY_ROLE[role]) for role in AgentRole
+        },
+    )

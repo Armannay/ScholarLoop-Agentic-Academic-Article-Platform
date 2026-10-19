@@ -31,11 +31,20 @@ _TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 
 
 class Tool(Protocol):
-    """Minimal interface implemented by concrete Step 6 tools."""
+    """Minimal interface implemented by concrete root tools.
 
-    name: str
-    parameters: Mapping[str, Any]
-    token_cost_hint: int
+    The three description attributes are read-only: a tool's schema and cost hint are
+    part of its identity, and nothing in the registry rewrites them at run time.
+    """
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def parameters(self) -> Mapping[str, Any]: ...
+
+    @property
+    def token_cost_hint(self) -> int: ...
 
     def run(self, arguments: Mapping[str, Any]) -> object | Awaitable[object]: ...
 
@@ -89,13 +98,17 @@ class UntrustedToolResult:
         )
 
 
+#: Concrete root tools each role may *see and call*. This is the single allowlist:
+#: registering a tool never grants access, and a project can only disable, never widen
+#: these sets. Fail-closed roles (architect) stay empty on purpose.
 DEFAULT_ALLOWED_TOOLS_BY_ROLE: dict[AgentRole, frozenset[str]] = {
-    # Fail closed until Step 6 registers concrete names and supplies the project policy.
     AgentRole.ARCHITECT: frozenset(),
-    AgentRole.RESEARCHER: frozenset(),
-    AgentRole.WRITER: frozenset(),
-    AgentRole.REVIEWER: frozenset(),
-    AgentRole.VALIDATOR: frozenset(),
+    AgentRole.RESEARCHER: frozenset(
+        {"crossref_doi", "fetch_url", "lookup_source", "search_sources"}
+    ),
+    AgentRole.WRITER: frozenset({"lookup_source"}),
+    AgentRole.REVIEWER: frozenset({"lookup_source"}),
+    AgentRole.VALIDATOR: frozenset({"crossref_doi", "fetch_url", "lookup_source"}),
 }
 
 
