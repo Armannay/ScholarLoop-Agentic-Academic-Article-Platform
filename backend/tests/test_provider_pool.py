@@ -26,6 +26,7 @@ from app.providers.errors import (
     ProviderBadResponse,
     ProviderRateLimited,
     ProviderUnavailable,
+    ProviderUnsupported,
 )
 from app.providers.pool import BreakerState, CircuitBreaker, ProviderPool, UsageRecord
 from tests.factories import make_request, sample_ulid, sample_ulids
@@ -94,6 +95,7 @@ class FakeResolver:
         *,
         status: AccountStatus = AccountStatus.ACTIVE,
         provider: AccountProvider = AccountProvider.MOCK,
+        base_url: str | None = None,
     ) -> None:
         account = Account(
             id=account_id,
@@ -101,6 +103,7 @@ class FakeResolver:
             provider=provider,
             label="stub",
             key_ciphertext="v1.stub.stub.stub.stub",
+            base_url=base_url,
             status=status,
             monthly_budget=MonthlyBudget(),
         )
@@ -109,6 +112,10 @@ class FakeResolver:
     def set_key(self, account_id: str, key: str) -> None:
         account, _ = self.accounts[account_id]
         self.accounts[account_id] = (account, key)
+
+    def set_base_url(self, account_id: str, base_url: str) -> None:
+        account, key = self.accounts[account_id]
+        self.accounts[account_id] = (account.model_copy(update={"base_url": base_url}), key)
 
     def bind(self, user_id: str, role: str, account_ids: list[str], **kwargs) -> AgentBinding:
         binding = AgentBinding(
@@ -357,7 +364,124 @@ def test_breaker_half_open_admits_exactly_one_probe() -> None:
     assert breaker.state("a") is BreakerState.CLOSED
 
 
+@pytest.mark.asyncio
+async def test_unused_candidate_keeps_its_half_open_probe() -> None:
+    """A success on A must not spend B's probe when B was never called.
+
+    Regression: the pool asked the breaker about every candidate *before* the
+    loop, so B's half-open probe was claimed and left in flight; B then stayed
+    un-probeable for the rest of the process.
+    """
+    resolver = FakeResolver()
+    resolver.add_account(IDS[0], "k0")
+    resolver.add_account(IDS[1], "k1")
+    resolver.bind(USER, "writer", [IDS[0], IDS[1]], strategy=BindingStrategy.FAILOVER)
+
+    clock = {"now": 0.0}
+    breaker = CircuitBreaker(
+        failure_threshold=1, recheck_interval_s=10.0, clock=lambda: clock["now"]
+    )
+    breaker.record_failure(IDS[0])
+    breaker.record_failure(IDS[1])
+    clock["now"] += 11.0
+
+    pool, _ = pool_with(resolver, breaker=breaker)
+    await pool.generate(make_request(), role="writer", user_id=USER)
+    assert breaker.state(IDS[0]) is BreakerState.CLOSED
+    # B was never asked about, so its probe slot was never claimed.
+    assert breaker.state(IDS[1]) is BreakerState.OPEN
+
+    # A is gone; B's probe must still be available, or the role is dead.
+    resolver.accounts.pop(IDS[0])
+    resolver.bind(USER, "writer", [IDS[1]], strategy=BindingStrategy.DEDICATED)
+    await pool.generate(make_request(), role="writer", user_id=USER)
+    assert breaker.state(IDS[1]) is BreakerState.CLOSED
+
+
+def test_breaker_releases_a_probe_that_never_reached_a_provider() -> None:
+    """If resolution fails, the claimed half-open probe must be given back."""
+    clock = {"now": 0.0}
+    breaker = CircuitBreaker(
+        failure_threshold=1, recheck_interval_s=10.0, clock=lambda: clock["now"]
+    )
+    breaker.record_failure("a")
+    clock["now"] += 11.0
+    assert breaker.allow("a") is True  # probe claimed
+    assert breaker.allow("a") is False
+    breaker.release_probe("a")  # account vanished before any provider call
+    assert breaker.allow("a") is True  # next call may probe again
+    breaker.record_success("a")
+    assert breaker.state("a") is BreakerState.CLOSED
+
+
 # --------------------------------------------------------------------------- hot-swap
+@pytest.mark.asyncio
+async def test_changing_base_url_rebuilds_the_provider() -> None:
+    """An OpenAI-compatible account keeps its key but may move endpoints.
+
+    The pool caches per (account, key, base_url); a key-only cache would keep
+    sending calls to the old host after a PATCH changed ``base_url``.
+    """
+    resolver = FakeResolver()
+    resolver.add_account(
+        IDS[0],
+        "k0",
+        provider=AccountProvider.OPENAI_COMPATIBLE,
+        base_url="https://old.example/v1",
+    )
+    resolver.bind(USER, "writer", [IDS[0]], strategy=BindingStrategy.DEDICATED)
+    seen: list[tuple[str, str | None]] = []
+
+    def factory(*, account, api_key):
+        seen.append((api_key, account.base_url))
+        return StubProvider(api_key)
+
+    pool = ProviderPool(resolver, provider_factory=factory)
+    await pool.generate(make_request(), role="writer", user_id=USER)
+    resolver.set_base_url(IDS[0], "https://new.example/v1")
+    await pool.generate(make_request(), role="writer", user_id=USER)
+    assert seen == [("k0", "https://old.example/v1"), ("k0", "https://new.example/v1")]
+
+
+@pytest.mark.asyncio
+async def test_round_robin_cursor_is_per_user_and_role() -> None:
+    """Two users with the same role must not share (and advance) one cursor."""
+    resolver = FakeResolver()
+    resolver.add_account(IDS[0], "k0")
+    resolver.add_account(IDS[1], "k1")
+    first_user, second_user = sample_ulid(1), sample_ulid(2)
+    resolver.bind(first_user, "writer", [IDS[0], IDS[1]], strategy=BindingStrategy.ROUND_ROBIN)
+    resolver.bind(second_user, "writer", [IDS[0], IDS[1]], strategy=BindingStrategy.ROUND_ROBIN)
+    order: list[str] = []
+
+    def factory(*, account, api_key):
+        return StubProvider(api_key, call_log=order)
+
+    pool = ProviderPool(resolver, provider_factory=factory)
+    await pool.generate(make_request(), role="writer", user_id=first_user)
+    await pool.generate(make_request(), role="writer", user_id=first_user)
+    await pool.generate(make_request(), role="writer", user_id=second_user)
+    assert order == ["k0", "k1", "k0"]
+
+
+@pytest.mark.asyncio
+async def test_unbuildable_account_fails_over_and_does_not_poison_the_pool() -> None:
+    """A per-account adapter error is a candidate failure, not a whole-call failure."""
+    resolver = FakeResolver()
+    resolver.add_account(IDS[0], "k0")
+    resolver.add_account(IDS[1], "k1")
+    resolver.bind(USER, "reviewer", [IDS[0], IDS[1]], strategy=BindingStrategy.FAILOVER)
+
+    def factory(*, account, api_key):
+        if api_key == "k0":
+            raise ProviderUnsupported("no adapter for this configuration")
+        return StubProvider(api_key)
+
+    pool = ProviderPool(resolver, provider_factory=factory)
+    response = await pool.generate(make_request(), role="reviewer", user_id=USER)
+    assert response.text == "ok"
+
+
 @pytest.mark.asyncio
 async def test_hot_swap_in_flight_calls_finish_on_the_old_key() -> None:
     resolver = FakeResolver()
@@ -448,3 +572,23 @@ async def test_usage_records_emitted_for_success_and_failure() -> None:
     assert good.est_cost >= 0.0
     assert bad.ok is False and bad.tokens_in == 0 and bad.error_code == "provider_unavailable"
     assert good.ts is not None
+
+
+@pytest.mark.asyncio
+async def test_usage_sink_failure_does_not_fail_the_provider_call() -> None:
+    """Accounting is downstream of the spend; a full audit table must not lose a reply."""
+    resolver = FakeResolver()
+    resolver.add_account(IDS[0], "k0")
+    resolver.bind(USER, "writer", [IDS[0]], strategy=BindingStrategy.DEDICATED)
+
+    class ExplodingSink:
+        def emit(self, record: UsageRecord) -> None:
+            raise RuntimeError("usage table unavailable")
+
+    pool = ProviderPool(
+        resolver,
+        provider_factory=lambda *, account, api_key: StubProvider(api_key),
+        usage_sink=ExplodingSink(),
+    )
+    response = await pool.generate(make_request(), role="writer", user_id=USER)
+    assert response.text == "ok"

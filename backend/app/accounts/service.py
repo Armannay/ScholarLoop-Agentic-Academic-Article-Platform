@@ -28,6 +28,7 @@ from typing import Any
 
 from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.accounts.auth import hash_password, verify_password
@@ -83,6 +84,7 @@ __all__ = [
     "SqlUsageSink",
     "UserService",
     "validate_api_key",
+    "validate_role_accounts",
 ]
 
 logger = get_logger(__name__)
@@ -121,6 +123,51 @@ def validate_api_key(provider: AccountProvider, api_key: str) -> str:
                 f"api_key does not look like a Claude Console API key. {ANTHROPIC_KEY_HINT}"
             )
     return key
+
+
+def _validated_binding(
+    *,
+    role: str,
+    account_ids: list[str],
+    strategy: str,
+    model: str,
+    max_input_tokens: int,
+    max_output_tokens: int,
+    enabled: bool,
+) -> AgentBinding:
+    """Build the frozen contract from row values, mapping failures to 422."""
+    try:
+        return AgentBinding(
+            role=BindingRole(role),
+            account_ids=list(account_ids),
+            strategy=BindingStrategy(strategy),
+            model=model,
+            max_input_tokens=max_input_tokens,
+            max_output_tokens=max_output_tokens,
+            enabled=enabled,
+        )
+    except ValidationError as exc:
+        raise ContractViolation(format_validation_errors(exc)) from exc
+
+
+def validate_role_accounts(session: Session, role: str, account_ids: list[str]) -> None:
+    """The Planner plans through Claude: its accounts must be anthropic (or mock).
+
+    Everything else may mix providers per binding. (Hard rule for the step: the
+    planner's Anthropic key comes from the Claude Console, never a Pro/Max login -
+    that shape check lives in :func:`validate_api_key`.)
+    """
+    if role != BindingRole.PLANNER.value:
+        return
+    for account_id in account_ids:
+        account = session.get(AccountRow, account_id)
+        if account is None or account.provider not in (
+            AccountProvider.ANTHROPIC.value,
+            AccountProvider.MOCK.value,
+        ):
+            raise ContractViolation(
+                "the planner role must bind anthropic (Claude Console key) or mock accounts"
+            )
 
 
 def _utc_now() -> datetime:
@@ -183,7 +230,12 @@ class UserService:
         )
         self._session.add(user)
         self._audit.record(actor=user.id, action="user.register", target=user.id)
-        self._session.flush()
+        try:
+            self._session.flush()
+        except IntegrityError as exc:
+            # Two concurrent registrations can both pass the SELECT above; the
+            # unique index is the arbiter, so its failure is a 409, not a 500.
+            raise ConflictError(f"an account with email {normalised!r} already exists") from exc
         return user
 
     def authenticate(self, email: str, password: str) -> UserRow:
@@ -327,6 +379,8 @@ class AccountService:
         changed: list[str] = []
         provider = AccountProvider(row.provider)
 
+        if "api_key" in payload.model_fields_set and payload.api_key is None:
+            raise ContractViolation("api_key cannot be null; omit it to keep the current key")
         if "api_key" in payload.model_fields_set and payload.api_key is not None:
             key = validate_api_key(provider, payload.api_key.get_secret_value())
             row.key_ciphertext = self._require_encryptor().encrypt(key, aad=row.id)
@@ -405,7 +459,13 @@ class AccountService:
             replacement = None
 
         bindings = self._bindings_using(owner_id, account_id)
-        sole_enabled = [b for b in bindings if b.enabled and list(b.account_ids) == [account_id]]
+        # "Only account" means nothing usable is left behind: a second candidate
+        # that is disabled or already deleted cannot serve the role.
+        sole_enabled = [
+            b
+            for b in bindings
+            if b.enabled and self._usable_candidates_left(b, excluding=account_id) == 0
+        ]
         if sole_enabled and replacement is None and not disable_roles:
             raise ConflictError(
                 f"account {account_id} is the only account of enabled role(s) "
@@ -421,8 +481,38 @@ class AccountService:
         for binding in bindings:
             ids = list(binding.account_ids)
             if replacement is not None:
-                ids = [replacement.id if item == account_id else item for item in ids]
-                binding.account_ids = ids
+                # A replacement that is already a candidate must not be duplicated:
+                # ``account_ids`` is a set of distinct candidates for the contract.
+                new_ids: list[str] = []
+                for item in ids:
+                    candidate = replacement.id if item == account_id else item
+                    if candidate not in new_ids:
+                        new_ids.append(candidate)
+                new_strategy = binding.strategy
+                if len(new_ids) == 1 and new_strategy in ("round_robin", "failover"):
+                    new_strategy = "dedicated"
+                # Validate before mutating: a planner binding cannot silently acquire
+                # an OpenAI-compatible credential, and a replacement cannot leave a
+                # strategy that needs two accounts holding one.
+                validate_role_accounts(self._session, binding.role, new_ids)
+                _validated_binding(
+                    role=binding.role,
+                    account_ids=new_ids,
+                    strategy=new_strategy,
+                    model=binding.model,
+                    max_input_tokens=binding.max_input_tokens,
+                    max_output_tokens=binding.max_output_tokens,
+                    enabled=binding.enabled,
+                )
+                if new_strategy != binding.strategy:
+                    self._audit.record(
+                        actor=owner_id,
+                        action="binding.strategy_relaxed",
+                        target=f"role:{binding.role}",
+                        detail={"strategy": new_strategy, "reason": "account_replaced"},
+                    )
+                binding.account_ids = new_ids
+                binding.strategy = new_strategy
                 binding.updated_at = _utc_now()
                 replaced_in.append(binding.role)
                 continue
@@ -446,6 +536,12 @@ class AccountService:
                     target=f"role:{binding.role}",
                     detail={"strategy": "dedicated", "reason": "account_deleted"},
                 )
+            if binding.enabled and self._usable_candidates_left(binding, excluding=account_id) == 0:
+                # disable_roles=true (or only disabled candidates left): the id is
+                # recorded but nothing callable remains, so the role must not look
+                # enabled to the loop or to GET /agents/{role}/binding.
+                binding.enabled = False
+                disabled_roles.append(binding.role)
             binding.updated_at = _utc_now()
             removed_from.append(binding.role)
 
@@ -486,7 +582,6 @@ class AccountService:
         try:
             response = await provider.generate(probe, role="account_test", account_id=row.id)
             latency_ms = int((time.monotonic() - started) * 1000)
-            await provider.aclose()
             self._audit.record(
                 actor=owner_id,
                 action="account.test",
@@ -502,7 +597,6 @@ class AccountService:
             )
         except ProviderError as exc:
             latency_ms = int((time.monotonic() - started) * 1000)
-            await provider.aclose()
             self._audit.record(
                 actor=owner_id,
                 action="account.test",
@@ -517,12 +611,27 @@ class AccountService:
                 error_code=exc.code,
                 error_message=redact_keys(exc.message),
             )
+        finally:
+            # A cancelled probe (client disconnect) never reaches either branch;
+            # without this the adapter's HTTP client outlives the request.
+            await provider.aclose()
 
     def _bindings_using(self, owner_id: str, account_id: str) -> list[AgentBindingRow]:
         rows = self._session.scalars(
             select(AgentBindingRow).where(AgentBindingRow.user_id == owner_id)
         ).all()
         return [row for row in rows if account_id in list(row.account_ids)]
+
+    def _usable_candidates_left(self, binding: AgentBindingRow, *, excluding: str) -> int:
+        """Candidates that could still serve a call after ``excluding`` is deleted."""
+        count = 0
+        for item in binding.account_ids:
+            if item == excluding:
+                continue
+            row = self._session.get(AccountRow, item)
+            if row is not None and row.status != AccountStatus.DISABLED.value:
+                count += 1
+        return count
 
 
 # --------------------------------------------------------------------------- bindings
@@ -546,18 +655,15 @@ class BindingService:
                 raise NotFoundError(f"account {account_id} not found")
         self._validate_role_provider(role_value, payload.account_ids)
         # The frozen contract is the validator: any rule it encodes is enforced here.
-        try:
-            AgentBinding(
-                role=BindingRole(role_value),
-                account_ids=list(payload.account_ids),
-                strategy=payload.strategy,
-                model=payload.model,
-                max_input_tokens=payload.max_input_tokens,
-                max_output_tokens=payload.max_output_tokens,
-                enabled=payload.enabled,
-            )
-        except ValidationError as exc:
-            raise ContractViolation(format_validation_errors(exc)) from exc
+        _validated_binding(
+            role=role_value,
+            account_ids=list(payload.account_ids),
+            strategy=payload.strategy.value,
+            model=payload.model,
+            max_input_tokens=payload.max_input_tokens,
+            max_output_tokens=payload.max_output_tokens,
+            enabled=payload.enabled,
+        )
 
         row = self._row(owner_id, role_value)
         if row is None:
@@ -621,23 +727,7 @@ class BindingService:
         )
 
     def _validate_role_provider(self, role: str, account_ids: list[str]) -> None:
-        """The Planner plans through Claude: its accounts must be anthropic (or mock).
-
-        Everything else may mix providers per binding. (Hard rule for the step: the
-        planner's Anthropic key comes from the Claude Console, never a Pro/Max login -
-        that shape check lives in :func:`validate_api_key`.)
-        """
-        if role != BindingRole.PLANNER.value:
-            return
-        for account_id in account_ids:
-            account = self._session.get(AccountRow, account_id)
-            if account is None or account.provider not in (
-                AccountProvider.ANTHROPIC.value,
-                AccountProvider.MOCK.value,
-            ):
-                raise ContractViolation(
-                    "the planner role must bind anthropic (Claude Console key) or mock accounts"
-                )
+        validate_role_accounts(self._session, role, account_ids)
 
 
 # --------------------------------------------------------------------------- usage
@@ -711,6 +801,12 @@ class SqlAccountResolver:
         with session_scope(self._factory) as session:
             row = session.get(AccountRow, account_id)
             if row is None:
+                return
+            # The breaker must never resurrect a credential the owner explicitly
+            # disabled (possibly mid-call): a late success only clears DEGRADED.
+            if row.status == AccountStatus.DISABLED.value and status is not AccountStatus.DISABLED:
+                return
+            if row.status == status.value:
                 return
             row.status = status.value
             row.updated_at = _utc_now()

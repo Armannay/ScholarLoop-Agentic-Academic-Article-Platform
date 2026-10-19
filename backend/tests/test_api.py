@@ -48,6 +48,24 @@ def test_health_reports_loaded_config(client: TestClient) -> None:
     assert body["config_errors"] == {}
 
 
+def test_app_boots_with_master_key_from_dotenv(
+    repo_root: Path, db_url: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``cp .env.example .env`` must work: APP_MASTER_KEY is read from the file."""
+    monkeypatch.delenv("APP_MASTER_KEY", raising=False)
+    monkeypatch.delenv("SCHOLARLOOP_MASTER_KEY", raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text("APP_MASTER_KEY=" + "ab" * 32 + "\n", encoding="utf-8")
+    settings = Settings(_env_file=env_file, root_dir=repo_root, env="test", database_url=db_url)
+    with TestClient(create_app(settings)) as dotenv_client:
+        body = dotenv_client.get("/api/health").json()
+        assert body["providers"]["account_store_ready"] is True
+        registered = dotenv_client.post(
+            "/api/auth/register", json={"email": "dotenv@example.org", "password": "long-enough"}
+        )
+        assert registered.status_code == 201
+
+
 def test_health_is_secret_free(client: TestClient) -> None:
     """No key-shaped string may appear in a response body (HARD RULE 2)."""
     for path in ("/api/health", "/api/config", "/api/version", "/api/contracts", "/"):
@@ -105,6 +123,7 @@ def test_config_reports_where_it_read_from(client: TestClient, settings: Setting
 def test_config_honours_project_overrides(repo_root: Path) -> None:
     """A project override changes the numbers the API reports."""
     settings = Settings(
+        _env_file=None,
         root_dir=repo_root,
         env="test",
         project_overrides_path=Path("config/projects.example.yaml"),
@@ -123,7 +142,7 @@ def test_broken_config_degrades_instead_of_crashing(tmp_path: Path, repo_root: P
     bad_policies = tmp_path / "policies.yaml"
     bad_policies.write_text("schema_version: 1\npolicies:\n  q_minn: 60\n", encoding="utf-8")
 
-    settings = Settings(root_dir=repo_root, env="test", policies_path=bad_policies)
+    settings = Settings(_env_file=None, root_dir=repo_root, env="test", policies_path=bad_policies)
     with TestClient(create_app(settings)) as client:
         health = client.get("/api/health")
         assert health.status_code == 200

@@ -17,8 +17,10 @@ from app.accounts.crypto import (
     EnvelopeEncryptor,
     KeyRedactionFilter,
     MasterKey,
+    configure_master_key,
     forget_secret,
     generate_master_key,
+    get_master_key,
     install_key_redaction,
     mask_secret,
     redact_keys,
@@ -140,6 +142,28 @@ def test_key_redaction_filter_scrubs_patterns_and_registered_keys() -> None:
         logger.removeHandler(handler)
 
 
+def test_key_redaction_filter_scrubs_exception_tracebacks() -> None:
+    """A key inside an exception message is scrubbed before the handler formats it."""
+    handler = _RecordingHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    handler.addFilter(KeyRedactionFilter())
+    logger = logging.getLogger("test.keyredaction.exc")
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        key = api_key("Ex6ce7pt8io9n0x1")
+        try:
+            raise RuntimeError(f"provider rejected key {key}")
+        except RuntimeError:
+            logger.exception("provider call failed")
+        text = "\n".join(handler.lines)
+        assert key not in text
+        assert REDACTED in text
+    finally:
+        forget_secret(key)
+        logger.removeHandler(handler)
+
+
 def test_install_key_redaction_is_idempotent() -> None:
     handler = _RecordingHandler()
     root = logging.getLogger()
@@ -198,6 +222,54 @@ def test_rotate_master_key_reencrypts_every_row(session_factory, master_key: Mas
             assert plaintext in keys.values()
         audits = session.scalars(select(AuditLogRow)).all()
         assert any(a.action == "master_key.rotate" for a in audits)
+
+
+def test_rotation_without_explicit_old_key_adopts_the_new_key(
+    session_factory, master_key: MasterKey
+) -> None:
+    """``old_key=None`` means "the configured key", so the process must adopt it.
+
+    Regression: rows were re-encrypted but the in-process key stayed the old one,
+    and every decrypt failed until a restart.
+    """
+    from app.accounts.db import session_scope
+
+    other_master = MasterKey.from_string(generate_master_key())
+    key = api_key("Adopt0new0key1234")
+    account_id = new_ulid()
+    with session_scope(session_factory) as session:
+        session.add(
+            UserRow(id=new_ulid(), email="adopt@example.org", password_hash="x", created_at=_now())
+        )
+        owner = session.scalar(select(UserRow)).id
+        session.add(
+            AccountRow(
+                id=account_id,
+                owner_id=owner,
+                provider="anthropic",
+                label="adopt",
+                key_ciphertext=EnvelopeEncryptor(master_key).encrypt(key, aad=account_id),
+                key_mask=mask_secret(key),
+                status="active",
+                created_at=_now(),
+                updated_at=_now(),
+            )
+        )
+
+    configure_master_key(master_key)
+    try:
+        with session_scope(session_factory) as session:
+            report = rotate_master_key(session, new_key=other_master)
+            assert report.rotated == 1
+        # No explicit key: the process key must now be the rotated-to key.
+        assert get_master_key().fingerprint() == other_master.fingerprint()
+        with session_scope(session_factory) as session:
+            row = session.get(AccountRow, account_id)
+            assert row is not None
+            decryptor = EnvelopeEncryptor(get_master_key())
+            assert decryptor.decrypt(row.key_ciphertext, aad=row.id) == key
+    finally:
+        configure_master_key(None)
 
 
 def test_audit_rows_never_store_secret_shapes(session_factory) -> None:

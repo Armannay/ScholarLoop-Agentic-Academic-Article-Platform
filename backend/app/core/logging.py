@@ -34,7 +34,11 @@ class RedactionFilter(logging.Filter):
         if redacted != message:
             record.msg = redacted
             record.args = ()
-        if record.exc_text:
+        # ``exc_text`` is filled in by the formatter *after* filters run, so a key
+        # inside an exception message would otherwise escape. Render and redact now.
+        if record.exc_info is not None:
+            record.exc_text = redact(logging.Formatter().formatException(record.exc_info))
+        elif record.exc_text:
             record.exc_text = redact(record.exc_text)
         return True
 

@@ -45,7 +45,7 @@ def config_dir(repo_root: Path) -> Path:
 @pytest.fixture
 def settings(repo_root: Path) -> Settings:
     """Settings rooted at the repository, with no secret key (live providers off)."""
-    return Settings(root_dir=repo_root, env="test", secret_key=None)
+    return Settings(_env_file=None, root_dir=repo_root, env="test", secret_key=None)
 
 
 @pytest.fixture
@@ -163,7 +163,9 @@ def user_row(user_service: UserService, session: Session):
 
 @pytest.fixture
 def api_settings(repo_root: Path, db_url: str) -> Settings:
-    return Settings(root_dir=repo_root, env="test", database_url=db_url, secret_key=None)
+    return Settings(
+        _env_file=None, root_dir=repo_root, env="test", database_url=db_url, secret_key=None
+    )
 
 
 @pytest.fixture

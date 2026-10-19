@@ -131,6 +131,8 @@ class OpenAICompatibleProvider:
         body: dict[str, Any] = {
             "model": model,
             "messages": messages,
+            # VERIFY: newer OpenAI models renamed this to max_completion_tokens;
+            # generate() retries once on that specific 400 (see below).
             "max_tokens": request.max_output_tokens,
         }
         if request.json_schema is not None and with_response_format:
@@ -157,14 +159,20 @@ class OpenAICompatibleProvider:
         try:
             payload = await self._request_json("POST", "/chat/completions", body)
         except ProviderBadResponse as exc:
-            if request.json_schema is None or not _wants_response_format_fallback(exc):
+            if _wants_max_tokens_fallback(exc):
+                logger.info("service rejected max_tokens; retrying with max_completion_tokens")
+                body = self._body(request, resolved_model)
+                body["max_completion_tokens"] = body.pop("max_tokens")
+                payload = await self._request_json("POST", "/chat/completions", body)
+            elif request.json_schema is not None and _wants_response_format_fallback(exc):
+                logger.info(
+                    "service rejected response_format; retrying with schema in the prompt (%s)",
+                    exc.code,
+                )
+                body = self._body(request, resolved_model, with_response_format=False)
+                payload = await self._request_json("POST", "/chat/completions", body)
+            else:
                 raise
-            logger.info(
-                "service rejected response_format; retrying with schema in the prompt (%s)",
-                exc.code,
-            )
-            body = self._body(request, resolved_model, with_response_format=False)
-            payload = await self._request_json("POST", "/chat/completions", body)
         latency_ms = int((time.monotonic() - started) * 1000)
         text = self._extract_text(payload)
         usage = self._map_usage(payload.get("usage") or {})
@@ -303,6 +311,16 @@ class OpenAICompatibleProvider:
             f"chat-completions API error {response.status_code}: {detail or response.reason_phrase}"
         )
         return redact(raw)
+
+
+def _wants_max_tokens_fallback(exc: ProviderBadResponse) -> bool:
+    """True when the 4xx is about the completion-cap parameter, not the call."""
+    if exc.status_code not in (400, 422):
+        return False
+    lowered = exc.message.lower()
+    return "max_completion_tokens" in lowered or (
+        "max_tokens" in lowered and "not supported" in lowered
+    )
 
 
 def _wants_response_format_fallback(exc: ProviderBadResponse) -> bool:

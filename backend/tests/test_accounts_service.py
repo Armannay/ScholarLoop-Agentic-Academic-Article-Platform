@@ -12,7 +12,13 @@ from sqlalchemy import select
 
 from app.accounts.models import AccountRow, AuditLogRow
 from app.accounts.schemas import AccountCreate, AccountPatch, BindingPut, BudgetPatch
-from app.accounts.service import AccountService, BindingService, UserService, validate_api_key
+from app.accounts.service import (
+    AccountService,
+    BindingService,
+    SqlAccountResolver,
+    UserService,
+    validate_api_key,
+)
 from app.contracts.enums import AccountProvider, AccountStatus, BindingRole, BindingStrategy
 from app.core.errors import ConflictError, ContractViolation, NotFoundError
 from tests.test_accounts_crypto import api_key
@@ -95,6 +101,19 @@ def test_patch_rotates_key_and_updates_mask_and_fingerprint(
     assert rotated.key_fingerprint != view.key_fingerprint
     row = account_service.get_row(user_row.id, view.id)
     assert account_service.decrypt_key(row) == new_key
+
+
+def test_patch_with_explicit_null_key_is_refused_not_ignored(
+    account_service: AccountService, user_row
+) -> None:
+    """``{"api_key": null}`` is ambiguous: refuse instead of silently keeping the key."""
+    view = make_account(account_service, user_row.id)
+    with pytest.raises(ContractViolation, match="cannot be null"):
+        account_service.patch(user_row.id, view.id, AccountPatch(api_key=None))
+    # An omitted key still means "keep it".
+    assert account_service.patch(user_row.id, view.id, AccountPatch(label="renamed")).label == (
+        "renamed"
+    )
 
 
 def test_patch_budget_can_be_set_and_cleared(account_service: AccountService, user_row) -> None:
@@ -185,6 +204,32 @@ def test_delete_with_disable_roles_disables_the_binding(
     assert session.get(AccountRow, view.id) is None
 
 
+def test_delete_protects_a_role_whose_other_candidates_are_unusable(
+    account_service: AccountService, binding_service: BindingService, user_row
+) -> None:
+    """The sole *usable* account of an enabled role is protected too.
+
+    Regression: protection compared ``account_ids`` with ``[id]``, so a binding
+    of [A, B] where B is disabled let A be deleted, leaving the role enabled
+    with nothing that can serve a call.
+    """
+    live = make_account(account_service, user_row.id, label="live")
+    dead = make_account(account_service, user_row.id, label="dead", key=api_key("Disabled0key1234"))
+    account_service.patch(user_row.id, dead.id, AccountPatch(status=AccountStatus.DISABLED))
+    _bind(binding_service, user_row.id, BindingRole.WRITER, [live.id, dead.id])
+    with pytest.raises(ConflictError) as excinfo:
+        account_service.delete(user_row.id, live.id)
+    assert excinfo.value.context["roles"] == ["writer"]
+    assert account_service.get(user_row.id, live.id).id == live.id
+
+    # disable_roles=true still deletes, but the role is reported and left off.
+    result = account_service.delete(user_row.id, live.id, disable_roles=True)
+    assert result.disabled_roles == ["writer"]
+    binding = binding_service.get(user_row.id, BindingRole.WRITER)
+    assert binding is not None and binding.enabled is False
+    assert binding.account_ids == [dead.id]
+
+
 def test_delete_with_replacement_swaps_the_binding(
     account_service: AccountService, binding_service: BindingService, user_row
 ) -> None:
@@ -203,6 +248,49 @@ def test_delete_with_replacement_swaps_the_binding(
     assert binding is not None
     assert binding.account_ids == [new.id]
     assert binding.enabled is True
+
+
+def test_delete_with_replacement_already_in_the_binding_dedupes_and_relaxes(
+    account_service: AccountService, binding_service: BindingService, user_row
+) -> None:
+    """Replacing A with B when B is already a candidate must not yield [B, B]."""
+    first = make_account(account_service, user_row.id, label="a")
+    second = make_account(account_service, user_row.id, label="b", key=api_key("Second9key8here"))
+    _bind(binding_service, user_row.id, BindingRole.REVIEWER, [first.id, second.id])
+    result = account_service.delete(user_row.id, first.id, replacement_account_id=second.id)
+    assert result.replaced_in == ["reviewer"]
+    binding = binding_service.get(user_row.id, BindingRole.REVIEWER)
+    assert binding is not None
+    assert binding.account_ids == [second.id]
+    assert binding.strategy == BindingStrategy.DEDICATED
+
+
+def test_delete_cannot_smuggle_a_non_claude_account_into_the_planner(
+    account_service: AccountService, binding_service: BindingService, user_row
+) -> None:
+    """Replacement is not a bypass of the planner's Anthropic-only rule."""
+    claude = make_account(account_service, user_row.id, label="claude")
+    router = make_account(
+        account_service,
+        user_row.id,
+        provider=AccountProvider.OPENAI_COMPATIBLE,
+        label="router",
+        base_url="https://openrouter.example/api/v1",
+        key=api_key("Router0key9here"),
+    )
+    _bind(
+        binding_service,
+        user_row.id,
+        BindingRole.PLANNER,
+        [claude.id],
+        strategy=BindingStrategy.DEDICATED,
+    )
+    with pytest.raises(ContractViolation, match="planner"):
+        account_service.delete(user_row.id, claude.id, replacement_account_id=router.id)
+    # The refusal left the account and binding untouched.
+    assert account_service.get(user_row.id, claude.id).id == claude.id
+    binding = binding_service.get(user_row.id, BindingRole.PLANNER)
+    assert binding is not None and binding.account_ids == [claude.id]
 
 
 def test_delete_from_multi_account_binding_just_removes_it(
@@ -294,6 +382,41 @@ def test_binding_contract_validation_is_enforced(
     # failover needs at least two accounts - the frozen contract says so.
     with pytest.raises(Exception, match="at least two accounts"):
         _bind(binding_service, user_row.id, BindingRole.WRITER, [view.id])
+
+
+def test_resolver_status_updates_never_resurrect_a_disabled_account(
+    account_service: AccountService,
+    user_row,
+    session,
+    session_factory,
+    encryptor,
+) -> None:
+    """A late breaker success must not flip an owner-disabled credential back on."""
+    view = make_account(account_service, user_row.id)
+    account_service.patch(user_row.id, view.id, AccountPatch(status=AccountStatus.DISABLED))
+    session.commit()
+
+    resolver = SqlAccountResolver(session_factory, encryptor)
+    resolver.set_account_status(
+        view.id, AccountStatus.ACTIVE, actor="pool", reason="circuit_recovered"
+    )
+    session.expire_all()
+    row = session.get(AccountRow, view.id)
+    assert row is not None and row.status == AccountStatus.DISABLED.value
+
+    # A normal degraded -> active recovery is still allowed once the owner has
+    # explicitly re-enabled the credential.
+    account_service.patch(user_row.id, view.id, AccountPatch(status=AccountStatus.ACTIVE))
+    session.commit()
+    resolver.set_account_status(
+        view.id, AccountStatus.DEGRADED, actor="pool", reason="circuit_open"
+    )
+    resolver.set_account_status(
+        view.id, AccountStatus.ACTIVE, actor="pool", reason="circuit_recovered"
+    )
+    session.expire_all()
+    row = session.get(AccountRow, view.id)
+    assert row is not None and row.status == AccountStatus.ACTIVE.value
 
 
 def test_audit_trail_written_without_secrets(
