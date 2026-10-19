@@ -31,7 +31,12 @@ from tests.test_accounts_crypto import api_key
 
 pytestmark = pytest.mark.providers
 
-ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+# A test-only host: respx intercepts it, and the suite can never reach the
+# vendor endpoint even if a mock is missing. The adapter's default host is
+# exercised by the factory, not here.
+ANTHROPIC_BASE = "https://anthropic.test"
+ANTHROPIC_URL = f"{ANTHROPIC_BASE}/v1/messages"
+ANTHROPIC_COUNT_URL = f"{ANTHROPIC_BASE}/v1/messages/count_tokens"
 OPENAI_URL = "https://openrouter.example/api/v1/chat/completions"
 
 
@@ -56,6 +61,12 @@ def anthropic_body(content=None, usage=None, model="claude-sonnet-4-5") -> dict:
     }
 
 
+def anthropic_provider(key: str | None = None, **kwargs: object) -> AnthropicProvider:
+    """An adapter pointed at the test host, so no test can reach the live endpoint."""
+    kwargs.setdefault("base_url", ANTHROPIC_BASE)
+    return AnthropicProvider(key or api_key(), **kwargs)  # type: ignore[arg-type]
+
+
 def fast_provider(provider: AnthropicProvider | OpenAICompatibleProvider) -> object:
     """Zero out backoff so retry tests stay instant and deterministic."""
     provider._backoff_base_s = 0.0  # type: ignore[attr-defined]
@@ -65,7 +76,7 @@ def fast_provider(provider: AnthropicProvider | OpenAICompatibleProvider) -> obj
 
 # --------------------------------------------------------------------------- anthropic
 def test_anthropic_satisfies_the_protocol() -> None:
-    assert isinstance(AnthropicProvider(api_key()), LLMProvider)
+    assert isinstance(anthropic_provider(), LLMProvider)
     assert AnthropicProvider.name == "anthropic"
 
 
@@ -73,7 +84,7 @@ def test_anthropic_satisfies_the_protocol() -> None:
 @pytest.mark.asyncio
 async def test_anthropic_request_shape_maps_cache_control_and_headers() -> None:
     route = respx.post(ANTHROPIC_URL).mock(return_value=httpx.Response(200, json=anthropic_body()))
-    provider = AnthropicProvider(api_key(), model="claude-sonnet-4-5")
+    provider = anthropic_provider(model="claude-sonnet-4-5")
     response = await provider.generate(make_request(), role="planner")
     await provider.aclose()
 
@@ -102,7 +113,7 @@ async def test_anthropic_request_shape_maps_cache_control_and_headers() -> None:
 @pytest.mark.asyncio
 async def test_anthropic_uncached_system_block_has_no_marker() -> None:
     route = respx.post(ANTHROPIC_URL).mock(return_value=httpx.Response(200, json=anthropic_body()))
-    provider = AnthropicProvider(api_key())
+    provider = anthropic_provider()
     await provider.generate(make_request(cache=False))
     await provider.aclose()
     body = json.loads(route.calls.last.request.content)
@@ -120,7 +131,7 @@ async def test_anthropic_json_schema_becomes_a_forced_tool() -> None:
             ),
         )
     )
-    provider = AnthropicProvider(api_key())
+    provider = anthropic_provider()
     response = await provider.generate(make_request(schema=True))
     await provider.aclose()
     body = json.loads(route.calls.last.request.content)
@@ -147,7 +158,7 @@ async def test_anthropic_usage_maps_cache_read_and_creation() -> None:
             ),
         )
     )
-    provider = AnthropicProvider(api_key())
+    provider = anthropic_provider()
     response = await provider.generate(make_request())
     await provider.aclose()
     assert route.called
@@ -175,7 +186,7 @@ async def test_anthropic_maps_error_statuses_to_the_provider_family() -> None:
                 status_code, json={"error": {"message": "synthetic failure"}}
             )
         )
-        provider = fast_provider(AnthropicProvider(api_key(), max_retries=0))
+        provider = fast_provider(anthropic_provider(max_retries=0))
         with pytest.raises(expected) as excinfo:
             await provider.generate(make_request())
         await provider.aclose()
@@ -200,7 +211,7 @@ async def test_anthropic_retries_429_then_succeeds_with_backoff(monkeypatch) -> 
         sleeps.append(delay)
 
     monkeypatch.setattr("app.providers.anthropic.asyncio.sleep", fake_sleep)
-    provider = fast_provider(AnthropicProvider(api_key(), max_retries=3))
+    provider = fast_provider(anthropic_provider(max_retries=3))
     response = await provider.generate(make_request())
     await provider.aclose()
     assert response.text == "pong"
@@ -220,7 +231,7 @@ async def test_anthropic_backoff_is_jittered_and_capped(monkeypatch) -> None:
         sleeps.append(delay)
 
     monkeypatch.setattr("app.providers.anthropic.asyncio.sleep", fake_sleep)
-    provider = AnthropicProvider(api_key(), max_retries=3, backoff_base_s=0.5, backoff_cap_s=2.0)
+    provider = anthropic_provider(max_retries=3, backoff_base_s=0.5, backoff_cap_s=2.0)
     provider._rng.seed(1)
     with pytest.raises(ProviderUnavailable):
         await provider.generate(make_request())
@@ -235,7 +246,7 @@ async def test_anthropic_backoff_is_jittered_and_capped(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_anthropic_timeout_maps_to_provider_timeout() -> None:
     respx.post(ANTHROPIC_URL).mock(side_effect=httpx.TimeoutException("boom"))
-    provider = fast_provider(AnthropicProvider(api_key(), max_retries=0))
+    provider = fast_provider(anthropic_provider(max_retries=0))
     with pytest.raises(ProviderTimeout):
         await provider.generate(make_request())
     await provider.aclose()
@@ -245,7 +256,7 @@ async def test_anthropic_timeout_maps_to_provider_timeout() -> None:
 @pytest.mark.asyncio
 async def test_anthropic_malformed_body_maps_to_bad_response() -> None:
     respx.post(ANTHROPIC_URL).mock(return_value=httpx.Response(200, text="not json at all"))
-    provider = fast_provider(AnthropicProvider(api_key(), max_retries=0))
+    provider = fast_provider(anthropic_provider(max_retries=0))
     with pytest.raises(ProviderBadResponse):
         await provider.generate(make_request())
     await provider.aclose()
@@ -254,14 +265,12 @@ async def test_anthropic_malformed_body_maps_to_bad_response() -> None:
 @respx.mock
 @pytest.mark.asyncio
 async def test_anthropic_count_tokens_is_best_effort() -> None:
-    respx.post("https://api.anthropic.com/v1/messages/count_tokens").mock(
+    respx.post(ANTHROPIC_COUNT_URL).mock(
         return_value=httpx.Response(200, json={"input_tokens": 42})
     )
-    provider = AnthropicProvider(api_key())
+    provider = anthropic_provider()
     assert await provider.count_tokens(make_request()) == 42
-    respx.post("https://api.anthropic.com/v1/messages/count_tokens").mock(
-        return_value=httpx.Response(500, json={})
-    )
+    respx.post(ANTHROPIC_COUNT_URL).mock(return_value=httpx.Response(500, json={}))
     assert await provider.count_tokens(make_request()) is None
     await provider.aclose()
 
@@ -273,7 +282,7 @@ async def test_anthropic_error_messages_are_redacted() -> None:
     respx.post(ANTHROPIC_URL).mock(
         return_value=httpx.Response(401, json={"error": {"message": f"bad key {key}"}})
     )
-    provider = AnthropicProvider(key, max_retries=0)
+    provider = anthropic_provider(key, max_retries=0)
     with pytest.raises(ProviderAuthError) as excinfo:
         await provider.generate(make_request())
     await provider.aclose()
