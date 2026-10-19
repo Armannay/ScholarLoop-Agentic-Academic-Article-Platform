@@ -37,7 +37,9 @@ backend/app/
   core/        settings, policies, rubric, ids, hashing, redaction, logging
   providers/   LLMProvider Protocol, ProviderError family, MockProvider
   api/         FastAPI: health, effective config, contract schemas
-  accounts/ governor/ memory/ article/ agents/ planner/ orchestrator/   # next steps
+  accounts/    encrypted key store, auth, bindings, usage roll-ups
+  governor/    nested budgets, token estimates, prompt assembly, telemetry, tiers
+  memory/ article/ agents/ planner/ orchestrator/   # next steps
 backend/tests/ contract round-trip, config loaders, MockProvider, API, secret scan
 config/        policies.yaml (loop knobs), rubric.yaml (gates, criteria, sections)
 rules/         root.rules.md + agents/<role>.rules.md   (<= 400 tokens each)
@@ -56,7 +58,8 @@ docs/          ARCHITECTURE.md, DECISIONS.md, schemas/
 
 ## Status
 
-Foundation complete: contracts, policy/rubric config, rules, provider interface with
-MockProvider, API health/config surface, CI. Next: accounts (encrypted store), the
-governor, the ledger/digest, the article store with patch application, the five agents,
-the Planner, and the loop controller.
+Complete: contracts, policy/rubric config, rules, provider interface with MockProvider,
+API health/config surface, the encrypted account store with call-time resolution, and the
+governor (hierarchical budgets, estimates, cache-friendly prompt assembly, telemetry,
+model tiers). Next: the ledger/digest, the article store with patch application, the five
+agents, the Planner, and the loop controller.

@@ -62,3 +62,21 @@ Never edit a merged ADR: supersede it with a new one and link both ways.
 - **Decision:** One Pydantic v2 module per contract in `backend/app/contracts/`, `extra="forbid"`, `schema_version: Literal[1]` on documents, string ULIDs, UTC timestamps. `make schemas` exports JSON Schemas to `docs/schemas/`, and CI fails if the committed schemas drift from the models. Contract tests assert round-trip losslessness, unknown-field rejection and the registry's completeness.
 - **Alternatives:** JSON Schema as the source of truth (rejected: loses Python typing, so `mypy --strict` cannot help); protobuf/OpenAPI-first (rejected: heavy for a four-person build, and prompts want plain JSON Schema).
 - **Consequences:** one definition serves runtime validation, IDE autocompletion, documentation and the schemas handed to models. Cost: contract changes must be deliberate — a field rename is a breaking change that requires a CONTRACT-CHANGE-REQUEST and a re-export.
+
+## ADR-0006 — Budgets nest per account-month, run, iteration and call
+
+- **Status:** accepted
+- **Date:** 2026-10-19
+- **Context:** A single global cap cannot answer "which account is overspending?" or "may this one prompt proceed?", and per-call estimates are useless if concurrent agents can each pass a check and then collectively overspend.
+- **Decision:** `BudgetManager` enforces four inclusive ceilings: the account's monthly `MonthlyBudget` (Step 1), `run_token_cap`, `iteration_token_cap` and `call_input_cap` (the task's `token_budget` may tighten the last). The orchestrator calls `precheck(estimate)` before a provider call and `record(usage)` after it; both mutate counters under one re-entrant lock, and `record` writes through to `governor_budget` and `account_usage_daily`. 80 % logs and returns a soft warning; crossing 100 % raises `BudgetExceeded(level, limit, used, remaining)`.
+- **Alternatives:** a single run cap (rejected: cannot attribute spend or stop one runaway account); token counting after the fact only (rejected: an overspend is already paid for); a database transaction per check (rejected: slower, and the account store is not the hot path).
+- **Consequences:** spend is predictable and attributable; concurrency cannot lose tokens; a database outage degrades to in-memory accounting rather than blocking the run. Cost: the orchestrator must pair every call with a precheck/record, and in-flight calls can still finish after a refusal.
+
+## ADR-0007 — Fixed prompt layout: cacheable prefix first, volatile task last
+
+- **Status:** accepted
+- **Date:** 2026-10-19
+- **Context:** Prompt caching only pays when the beginning of the prompt is byte-identical across calls. Mixing the iteration's digest or section text into the rules block would defeat the cache on every call, which is exactly the token waste HARD RULE 3 forbids.
+- **Decision:** `governor.context_builder` emits one fixed order: root -> project -> role rules, rubric excerpt, skill index and brief as a cache-hinted stable prefix; selected skill bodies and referenced source cards as the semi-stable block; digest slice, task and section text as the volatile layer. Project rules may add to root rules but a project `## Never` block must restate every mandatory rule or the build fails. Oversized prompts trim in one documented order - older digest detail, optional skill bodies, source-card notes - and never truncate the task or the section; if it still does not fit, `ContextTooLarge` is raised.
+- **Alternatives:** one monolithic system prompt (rejected: no cacheable prefix, and trimming would be arbitrary); truncating the task (rejected: the agent would silently do different work); letting each agent assemble its own prompt (rejected: untestable prefix stability and drifting budgets).
+- **Consequences:** prefix stability is a test, not a hope; trimming has a predictable order and a loud failure mode. Cost: every new prompt section must be assigned to exactly one layer, and a project that wants to override rules must restate them.
