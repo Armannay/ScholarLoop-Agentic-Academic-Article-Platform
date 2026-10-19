@@ -46,6 +46,7 @@ __all__ = [
     "KeyRedactionFilter",
     "MasterKey",
     "RotationReport",
+    "configure_master_key",
     "forget_secret",
     "generate_master_key",
     "get_master_key",
@@ -155,8 +156,25 @@ def generate_master_key() -> str:
     return _b64e(os.urandom(_MASTER_KEY_BYTES))
 
 
+#: Set by the application lifespan when settings (including ``.env``) supplied a key.
+_configured_master_key: MasterKey | None = None
+
+
+def configure_master_key(key: MasterKey | None) -> None:
+    """Install the process master key; ``None`` returns to environment lookup.
+
+    The app calls this once at startup so ``APP_MASTER_KEY`` can come from the
+    process environment *or* from ``.env`` (which pydantic-settings reads without
+    exporting it). Tests and tools call it with ``None`` to restore env semantics.
+    """
+    global _configured_master_key
+    _configured_master_key = key
+
+
 def get_master_key() -> MasterKey:
-    """The process master key from the environment (cached by the caller)."""
+    """The configured master key, else ``APP_MASTER_KEY`` from the environment."""
+    if _configured_master_key is not None:
+        return _configured_master_key
     return MasterKey.from_env()
 
 
@@ -271,7 +289,8 @@ def rotate_master_key(
             skipped += 1
             continue
         row.key_ciphertext = new_enc.encrypt(plaintext, aad=row.id)
-        forget_secret(plaintext)
+        # Do NOT forget the plaintext: the provider credential itself did not
+        # change, only its envelope. It must stay registered for log redaction.
         rotated += 1
 
     session.add(  # type: ignore[attr-defined]
@@ -367,7 +386,11 @@ class KeyRedactionFilter(logging.Filter):
         if redacted != message:
             record.msg = redacted
             record.args = ()
-        if record.exc_text:
+        # A key in an exception message/traceback is still a key: render and redact
+        # it here, because the handler formats ``exc_info`` only after filters run.
+        if record.exc_info is not None:
+            record.exc_text = redact_keys(logging.Formatter().formatException(record.exc_info))
+        elif record.exc_text:
             record.exc_text = redact_keys(record.exc_text)
         return True
 

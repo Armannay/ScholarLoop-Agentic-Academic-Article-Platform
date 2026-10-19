@@ -83,6 +83,7 @@ __all__ = [
     "SqlUsageSink",
     "UserService",
     "validate_api_key",
+    "validate_role_accounts",
 ]
 
 logger = get_logger(__name__)
@@ -121,6 +122,51 @@ def validate_api_key(provider: AccountProvider, api_key: str) -> str:
                 f"api_key does not look like a Claude Console API key. {ANTHROPIC_KEY_HINT}"
             )
     return key
+
+
+def _validated_binding(
+    *,
+    role: str,
+    account_ids: list[str],
+    strategy: str,
+    model: str,
+    max_input_tokens: int,
+    max_output_tokens: int,
+    enabled: bool,
+) -> AgentBinding:
+    """Build the frozen contract from row values, mapping failures to 422."""
+    try:
+        return AgentBinding(
+            role=BindingRole(role),
+            account_ids=list(account_ids),
+            strategy=BindingStrategy(strategy),
+            model=model,
+            max_input_tokens=max_input_tokens,
+            max_output_tokens=max_output_tokens,
+            enabled=enabled,
+        )
+    except ValidationError as exc:
+        raise ContractViolation(format_validation_errors(exc)) from exc
+
+
+def validate_role_accounts(session: Session, role: str, account_ids: list[str]) -> None:
+    """The Planner plans through Claude: its accounts must be anthropic (or mock).
+
+    Everything else may mix providers per binding. (Hard rule for the step: the
+    planner's Anthropic key comes from the Claude Console, never a Pro/Max login -
+    that shape check lives in :func:`validate_api_key`.)
+    """
+    if role != BindingRole.PLANNER.value:
+        return
+    for account_id in account_ids:
+        account = session.get(AccountRow, account_id)
+        if account is None or account.provider not in (
+            AccountProvider.ANTHROPIC.value,
+            AccountProvider.MOCK.value,
+        ):
+            raise ContractViolation(
+                "the planner role must bind anthropic (Claude Console key) or mock accounts"
+            )
 
 
 def _utc_now() -> datetime:
@@ -421,8 +467,38 @@ class AccountService:
         for binding in bindings:
             ids = list(binding.account_ids)
             if replacement is not None:
-                ids = [replacement.id if item == account_id else item for item in ids]
-                binding.account_ids = ids
+                # A replacement that is already a candidate must not be duplicated:
+                # ``account_ids`` is a set of distinct candidates for the contract.
+                new_ids: list[str] = []
+                for item in ids:
+                    candidate = replacement.id if item == account_id else item
+                    if candidate not in new_ids:
+                        new_ids.append(candidate)
+                new_strategy = binding.strategy
+                if len(new_ids) == 1 and new_strategy in ("round_robin", "failover"):
+                    new_strategy = "dedicated"
+                # Validate before mutating: a planner binding cannot silently acquire
+                # an OpenAI-compatible credential, and a replacement cannot leave a
+                # strategy that needs two accounts holding one.
+                validate_role_accounts(self._session, binding.role, new_ids)
+                _validated_binding(
+                    role=binding.role,
+                    account_ids=new_ids,
+                    strategy=new_strategy,
+                    model=binding.model,
+                    max_input_tokens=binding.max_input_tokens,
+                    max_output_tokens=binding.max_output_tokens,
+                    enabled=binding.enabled,
+                )
+                if new_strategy != binding.strategy:
+                    self._audit.record(
+                        actor=owner_id,
+                        action="binding.strategy_relaxed",
+                        target=f"role:{binding.role}",
+                        detail={"strategy": new_strategy, "reason": "account_replaced"},
+                    )
+                binding.account_ids = new_ids
+                binding.strategy = new_strategy
                 binding.updated_at = _utc_now()
                 replaced_in.append(binding.role)
                 continue
@@ -546,18 +622,15 @@ class BindingService:
                 raise NotFoundError(f"account {account_id} not found")
         self._validate_role_provider(role_value, payload.account_ids)
         # The frozen contract is the validator: any rule it encodes is enforced here.
-        try:
-            AgentBinding(
-                role=BindingRole(role_value),
-                account_ids=list(payload.account_ids),
-                strategy=payload.strategy,
-                model=payload.model,
-                max_input_tokens=payload.max_input_tokens,
-                max_output_tokens=payload.max_output_tokens,
-                enabled=payload.enabled,
-            )
-        except ValidationError as exc:
-            raise ContractViolation(format_validation_errors(exc)) from exc
+        _validated_binding(
+            role=role_value,
+            account_ids=list(payload.account_ids),
+            strategy=payload.strategy.value,
+            model=payload.model,
+            max_input_tokens=payload.max_input_tokens,
+            max_output_tokens=payload.max_output_tokens,
+            enabled=payload.enabled,
+        )
 
         row = self._row(owner_id, role_value)
         if row is None:
@@ -621,23 +694,7 @@ class BindingService:
         )
 
     def _validate_role_provider(self, role: str, account_ids: list[str]) -> None:
-        """The Planner plans through Claude: its accounts must be anthropic (or mock).
-
-        Everything else may mix providers per binding. (Hard rule for the step: the
-        planner's Anthropic key comes from the Claude Console, never a Pro/Max login -
-        that shape check lives in :func:`validate_api_key`.)
-        """
-        if role != BindingRole.PLANNER.value:
-            return
-        for account_id in account_ids:
-            account = self._session.get(AccountRow, account_id)
-            if account is None or account.provider not in (
-                AccountProvider.ANTHROPIC.value,
-                AccountProvider.MOCK.value,
-            ):
-                raise ContractViolation(
-                    "the planner role must bind anthropic (Claude Console key) or mock accounts"
-                )
+        validate_role_accounts(self._session, role, account_ids)
 
 
 # --------------------------------------------------------------------------- usage
@@ -711,6 +768,12 @@ class SqlAccountResolver:
         with session_scope(self._factory) as session:
             row = session.get(AccountRow, account_id)
             if row is None:
+                return
+            # The breaker must never resurrect a credential the owner explicitly
+            # disabled (possibly mid-call): a late success only clears DEGRADED.
+            if row.status == AccountStatus.DISABLED.value and status is not AccountStatus.DISABLED:
+                return
+            if row.status == status.value:
                 return
             row.status = status.value
             row.updated_at = _utc_now()

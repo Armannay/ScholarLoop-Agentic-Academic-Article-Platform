@@ -140,6 +140,28 @@ def test_key_redaction_filter_scrubs_patterns_and_registered_keys() -> None:
         logger.removeHandler(handler)
 
 
+def test_key_redaction_filter_scrubs_exception_tracebacks() -> None:
+    """A key inside an exception message is scrubbed before the handler formats it."""
+    handler = _RecordingHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    handler.addFilter(KeyRedactionFilter())
+    logger = logging.getLogger("test.keyredaction.exc")
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        key = api_key("Ex6ce7pt8io9n0x1")
+        try:
+            raise RuntimeError(f"provider rejected key {key}")
+        except RuntimeError:
+            logger.exception("provider call failed")
+        text = "\n".join(handler.lines)
+        assert key not in text
+        assert REDACTED in text
+    finally:
+        forget_secret(key)
+        logger.removeHandler(handler)
+
+
 def test_install_key_redaction_is_idempotent() -> None:
     handler = _RecordingHandler()
     root = logging.getLogger()

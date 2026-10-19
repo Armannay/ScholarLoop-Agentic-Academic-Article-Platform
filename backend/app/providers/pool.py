@@ -44,6 +44,7 @@ from app.providers.errors import (
     ProviderRateLimited,
     ProviderTimeout,
     ProviderUnavailable,
+    ProviderUnsupported,
 )
 from app.providers.factory import build_provider
 
@@ -60,14 +61,16 @@ __all__ = [
 logger = get_logger(__name__)
 
 #: Errors where trying the *next* account can still save the call. A malformed
-#: response or an unsupported feature is a property of the call, not the account,
-#: so those fail fast instead of burning every credential in the binding.
+#: response is a property of the call, not the account, so it fails fast instead of
+#: burning every credential in the binding. ``ProviderUnsupported`` is per-account
+#: configuration (an adapter cannot be built), so another candidate may still work.
 FAILOVER_ERRORS: tuple[type[ProviderError], ...] = (
     ProviderRateLimited,
     ProviderTimeout,
     ProviderUnavailable,
     ProviderAuthError,
     ProviderQuotaExceeded,
+    ProviderUnsupported,
 )
 
 
@@ -215,6 +218,18 @@ class CircuitBreaker:
             return opened
         return False
 
+    def release_probe(self, account_id: str) -> None:
+        """Give back a half-open probe that never reached the provider.
+
+        :meth:`allow` claims the probe slot before the pool resolves the account.
+        If resolution then fails (the account was deleted or disabled while the
+        circuit was open), no success/failure will ever be recorded - without this
+        the breaker would stay ``HALF_OPEN`` and every later call would be blocked.
+        """
+        entry = self._entry(account_id)
+        if entry.state is BreakerState.HALF_OPEN:
+            entry.probe_in_flight = False
+
     def state(self, account_id: str) -> BreakerState:
         return self._entry(account_id).state
 
@@ -228,10 +243,11 @@ class CircuitBreaker:
 # --------------------------------------------------------------------------- pool
 @dataclass
 class _ProviderEntry:
-    """One (account, key) provider instance, with its in-flight bookkeeping."""
+    """One (account, key, endpoint) provider instance, with in-flight bookkeeping."""
 
     provider: LLMProvider
-    key_fingerprint: str
+    #: Hash of key *and* account configuration. A changed base_url must rebuild.
+    signature: str
     in_flight: int = 0
     retired: bool = field(default=False)
 
@@ -286,7 +302,7 @@ class ProviderPool:
                 f"no active binding for role {role!r}", provider=None, role=role
             )
 
-        candidates = self._candidates(binding)
+        candidates = self._candidates(binding, user_id=user_id)
         usable = [account_id for account_id in candidates if self._breaker.allow(account_id)]
         if not usable:
             raise NoAccountAvailable(
@@ -302,12 +318,34 @@ class ProviderPool:
             try:
                 resolved = self._resolver.load_for_call(account_id)
             except NoAccountAvailable as exc:
+                # Resolution failed before any provider could run: release the
+                # half-open probe (if this was one), or it would block forever.
+                self._breaker.release_probe(account_id)
                 logger.info("skipping account %s: %s", account_id, exc.message)
                 last_error = exc
                 continue
 
             started = time.monotonic()
-            entry = self._provider_for(account_id, resolved)
+            try:
+                entry = self._provider_for(account_id, resolved)
+            except ProviderError as exc:
+                # A broken adapter configuration is account-scoped: count it,
+                # bill the failed attempt, and let failover try the next account.
+                self._breaker.release_probe(account_id)
+                self._on_failure(account_id, exc, actor=user_id)
+                self._emit(
+                    account_id=account_id,
+                    role=role,
+                    model=model or binding.model,
+                    usage=None,
+                    latency_ms=int((time.monotonic() - started) * 1000),
+                    ok=False,
+                    error_code=exc.code,
+                )
+                last_error = exc
+                if isinstance(exc, FAILOVER_ERRORS):
+                    continue
+                raise
             entry.in_flight += 1
             try:
                 response = await entry.provider.generate(
@@ -372,10 +410,12 @@ class ProviderPool:
         await self._drain()
 
     # -- internals --------------------------------------------------------
-    def _candidates(self, binding: AgentBinding) -> list[str]:
+    def _candidates(self, binding: AgentBinding, *, user_id: str) -> list[str]:
         ids = list(binding.account_ids)
+        role = binding.role if isinstance(binding.role, str) else binding.role.value
         if binding.strategy is BindingStrategy.ROUND_ROBIN:
-            key = (binding.role if isinstance(binding.role, str) else binding.role.value, "rr")
+            # Per user *and* role: two runs must not share a rotation cursor.
+            key = (user_id, role)
             counter = self._rr_counters.get(key, 0)
             self._rr_counters[key] = counter + 1
             offset = counter % len(ids)
@@ -386,17 +426,18 @@ class ProviderPool:
         return ids
 
     def _provider_for(self, account_id: str, resolved: ResolvedAccountLike) -> _ProviderEntry:
-        """Cached per (account, key). A rotated key builds a new provider at once;
-        the old entry stays alive for in-flight calls (hot-swap)."""
-        fingerprint = hashlib.sha256(resolved.api_key.encode("utf-8")).hexdigest()[:16]
+        """Cached per (account, key, endpoint). A rotated key *or* a changed
+        ``base_url`` builds a new provider at once; the old entry stays alive for
+        in-flight calls (hot-swap)."""
+        signature = _provider_signature(resolved)
         entry = self._entries.get(account_id)
-        if entry is not None and entry.key_fingerprint == fingerprint and not entry.retired:
+        if entry is not None and entry.signature == signature and not entry.retired:
             return entry
         if entry is not None:
             entry.retired = True
             self._retire(entry)
         provider = self._factory(account=resolved.account, api_key=resolved.api_key)
-        fresh = _ProviderEntry(provider=provider, key_fingerprint=fingerprint)
+        fresh = _ProviderEntry(provider=provider, signature=signature)
         self._entries[account_id] = fresh
         return fresh
 
@@ -476,18 +517,37 @@ class ProviderPool:
             from app.core.pricing import estimate_cost
 
             est_cost = estimate_cost(model, usage)
-        self._sink.emit(
-            UsageRecord(
-                account_id=account_id,
-                role=role,
-                model=model,
-                tokens_in=tokens_in,
-                tokens_out=tokens_out,
-                tokens_cached=tokens_cached,
-                est_cost=est_cost,
-                ts=utc_now(),
-                latency_ms=latency_ms,
-                ok=ok,
-                error_code=error_code,
-            )
+        record = UsageRecord(
+            account_id=account_id,
+            role=role,
+            model=model,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            tokens_cached=tokens_cached,
+            est_cost=est_cost,
+            ts=utc_now(),
+            latency_ms=latency_ms,
+            ok=ok,
+            error_code=error_code,
         )
+        try:
+            self._sink.emit(record)
+        except Exception:
+            logger.exception(
+                "usage sink failed for account %s; the provider call is unaffected", account_id
+            )
+
+
+def _provider_signature(resolved: ResolvedAccountLike) -> str:
+    """Opaque cache key for a resolved account: key + provider + endpoint.
+
+    Never log or persist the material: it contains the plaintext key. The digest is
+    only compared in memory, so a rotated key (or a moved OpenAI-compatible
+    ``base_url``) invalidates the cached provider immediately.
+    """
+    account = resolved.account
+    provider = getattr(account, "provider", "")
+    provider_value = getattr(provider, "value", provider)
+    base_url = getattr(account, "base_url", None) or ""
+    material = f"{provider_value}|{base_url}|{resolved.api_key}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]

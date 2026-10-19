@@ -157,6 +157,27 @@ def test_create_rejects_subscription_token_and_returns_no_echo(
     assert oauth_key not in response.text
 
 
+def test_request_validation_never_echoes_the_secret_input(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    """A rejected oversized key must not come back in the 422 body.
+
+    FastAPI's default validation body includes ``input``; for ``api_key`` that would
+    turn a typo (a pasted key one character too long) into a response/log leak.
+    """
+    oversized = api_key("Z" * 600)
+    response = client.post(
+        "/api/accounts",
+        json={"provider": "anthropic", "label": "too-long", "api_key": oversized},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+    assert "api_key" in response.text  # the location stays actionable
+    assert oversized not in response.text
+    assert "Z" * 40 not in response.text
+    assert response.json()["error"]["code"] == "validation_error"
+
+
 def test_cross_user_denied_paths(client: TestClient) -> None:
     owner = register(client, "owner@example.org")
     thief = register(client, "thief@example.org")
