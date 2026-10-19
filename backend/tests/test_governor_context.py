@@ -174,12 +174,12 @@ def test_task_and_section_text_survive_verbatim() -> None:
     assert "Acceptance:" in user
 
 
-def test_source_cards_are_rendered_by_id_with_referenced_first() -> None:
-    """A card is a citation handle: the id must be present and stable."""
+def test_only_source_cards_the_task_references_are_sent() -> None:
+    """The semi-stable layer is "cards the task references", not the whole store."""
     referenced = sample_ulid(1)
     other = sample_ulid(2)
     cards = [
-        {"id": other, "title": "Unreferenced", "authors": ["B"], "year": 2020, "snippet": "b"},
+        {"id": other, "title": "UNREFERENCED CARD", "authors": ["B"], "year": 2020, "snippet": "b"},
         {"id": referenced, "title": "Referenced", "authors": ["A"], "year": 2021, "snippet": "a"},
     ]
     request = build(
@@ -188,8 +188,26 @@ def test_source_cards_are_rendered_by_id_with_referenced_first() -> None:
     )
     prompt = "\n".join(block.text for block in request.system_blocks) + user_message(request)
 
-    assert prompt.index(referenced) < prompt.index(other)
-    assert "Referenced" in prompt and "2021" in prompt
+    assert referenced in prompt and "Referenced" in prompt and "2021" in prompt
+    assert other not in prompt, "an unreferenced card is prompt cost with no use"
+    assert "UNREFERENCED CARD" not in prompt
+
+
+def test_a_task_without_source_ids_gets_no_cards() -> None:
+    """No references, no card payload: the researcher task is the one that reads sources."""
+    cards = [
+        {
+            "id": sample_ulid(9),
+            "title": "CARD",
+            "authors": ["A"],
+            "year": 2020,
+            "snippet": "x",
+        }
+    ]
+    request = build(make_task(source_ids=[]), make_state(source_cards=cards))
+    prompt = "\n".join(block.text for block in request.system_blocks) + user_message(request)
+
+    assert "CARD" not in prompt
 
 
 def test_output_cap_comes_from_the_binding() -> None:
@@ -205,6 +223,25 @@ def test_output_cap_comes_from_the_binding() -> None:
     request = build(make_task(), make_state(), binding=binding, max_input_tokens=24_000)
 
     assert request.max_output_tokens == 1_234
+
+
+def test_builder_does_not_mutate_the_run_state_it_is_given() -> None:
+    """State is shared across tasks: a builder default must not be written into it."""
+    state = RunState(run_id="run-mut", role="writer")
+    builder = ContextBuilder(root_rules=ROOT_RULES, rubric_excerpt="Gates: all eight")
+
+    builder.build(make_task(), state)
+
+    assert state.root_rules is None, "the caller's state must come back untouched"
+    assert state.rubric_excerpt is None
+
+
+def test_output_cap_never_exceeds_the_task_budget() -> None:
+    """Asking for more output than the task may spend guarantees a silent overrun."""
+    task = make_task(token_budget=600)
+    request = build(task, make_state())
+
+    assert request.max_output_tokens <= task.token_budget
 
 
 def test_builder_caches_rules_and_prefixes_across_calls(repo_root: Path) -> None:
@@ -313,9 +350,10 @@ def test_digest_is_trimmed_first_and_skills_survive() -> None:
 def test_optional_skills_are_dropped_before_source_card_notes() -> None:
     """Trim 2 removes optional skill bodies and leaves the cards intact."""
     skill = SkillInfo(name="style", body="OPTIONAL SKILL " * 1_500, optional=True)
+    card_id = sample_ulid(5)
     cards = [
         {
-            "id": sample_ulid(5),
+            "id": card_id,
             "title": "CARD TITLE",
             "authors": ["A"],
             "year": 2020,
@@ -324,7 +362,7 @@ def test_optional_skills_are_dropped_before_source_card_notes() -> None:
     ]
     state = make_state(digest="tiny", selected_skills=[skill], source_cards=cards)
 
-    request = build(make_task(), state, max_input_tokens=2_000)
+    request = build(make_task(source_ids=[card_id]), state, max_input_tokens=2_000)
     prompt = "\n".join(block.text for block in request.system_blocks) + user_message(request)
 
     assert "OPTIONAL SKILL" not in prompt
@@ -346,19 +384,20 @@ def test_mandatory_skills_are_never_dropped() -> None:
 
 def test_source_card_notes_are_shortened_last() -> None:
     """Trim 3 shortens snippets; the card ids stay so citations still resolve."""
+    card_ids = [sample_ulid(index) for index in range(5, 8)]
     cards = [
         {
-            "id": sample_ulid(index),
+            "id": card_id,
             "title": f"Card {index}",
             "authors": ["Author"],
             "year": 2020,
             "snippet": "A finding that matters. " * 1_000,
         }
-        for index in range(5, 8)
+        for index, card_id in zip(range(5, 8), card_ids, strict=True)
     ]
     state = make_state(digest="tiny", source_cards=cards)
 
-    request = build(make_task(), state, max_input_tokens=2_000)
+    request = build(make_task(source_ids=card_ids), state, max_input_tokens=2_000)
     prompt = "\n".join(block.text for block in request.system_blocks) + user_message(request)
 
     for card in cards:

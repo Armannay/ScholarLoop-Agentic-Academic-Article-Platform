@@ -185,7 +185,9 @@ class BudgetManager:
         run_id: run identifier; also the persistence key. ``None`` means
             in-memory only (no restore across processes).
         session_factory: SQLAlchemy ``sessionmaker`` used to persist counters in
-            ``governor_budget`` and roll-ups in ``account_usage_daily``.
+            ``governor_budget``. The daily account roll-up
+            (``account_usage_daily``) belongs to the pool's usage sink and is
+            deliberately *not* written here: two writers would double-bill.
         clock: ``() -> date`` used for month bucketing (injectable in tests).
     """
 
@@ -204,6 +206,7 @@ class BudgetManager:
         self._session_factory = session_factory
         self._clock = clock
         self._lock = threading.RLock()
+        self._persistence_failures = 0
 
         self._run_tokens = 0
         self._run_cost = 0.0
@@ -236,6 +239,12 @@ class BudgetManager:
             return self._run_cost
 
     @property
+    def persistence_failures(self) -> int:
+        """Count of durable writes that failed (0 = every record is persisted)."""
+        with self._lock:
+            return self._persistence_failures
+
+    @property
     def warnings(self) -> list[BudgetWarning]:
         """Soft warnings raised so far (most recent last)."""
         with self._lock:
@@ -265,10 +274,10 @@ class BudgetManager:
             if resolved is BudgetLevel.RUN:
                 return _status(resolved.value, self._policies.run_token_cap, self._run_tokens + add)
             if resolved is BudgetLevel.ITERATION:
+                if iteration is None:
+                    raise ValueError("iteration is required to inspect the iteration budget")
                 iteration_limit: int | None = self._policies.iteration_token_cap
-                iteration_used = (
-                    self._iteration_tokens.get(iteration, 0) if iteration is not None else 0
-                )
+                iteration_used = self._iteration_tokens.get(iteration, 0)
                 return _status(resolved.value, iteration_limit, iteration_used + add)
             if resolved is BudgetLevel.ACCOUNT_MONTH:
                 if account_id is None:
@@ -352,6 +361,8 @@ class BudgetManager:
         """
         if estimate_tokens < 0:
             raise ValueError("estimate_tokens must be >= 0")
+        if task_budget is not None and task_budget <= 0:
+            raise ValueError("task_budget must be > 0")
 
         with self._lock:
             warnings: list[BudgetWarning] = []
@@ -442,17 +453,17 @@ class BudgetManager:
                 every cap so cached and full-rate prompt tokens are both billed.
             account_id: account that served the call.
             iteration: loop iteration that made the call.
-            role: binding role (for ``account_usage_daily``).
-            model: model id (for cost estimation and roll-ups).
+            role: binding role, accepted for symmetry with the pool's usage
+                record; the daily roll-up itself is written by ``SqlUsageSink``.
+            model: model id, used only to estimate cost when ``est_cost`` is
+                absent.
             est_cost: explicit cost; otherwise estimated from ``model``/``usage``.
         """
         if isinstance(usage, TokenUsage):
             tokens = usage.total
-            tokens_in, tokens_out, tokens_cached = usage.in_, usage.out, usage.cached
             cost = est_cost if est_cost is not None else estimate_cost(model or "", usage)
         else:
             tokens = int(usage)
-            tokens_in, tokens_out, tokens_cached = tokens, 0, 0
             cost = est_cost or 0.0
         if tokens < 0:
             raise ValueError("usage must be >= 0")
@@ -471,14 +482,9 @@ class BudgetManager:
             if self._session_factory is not None:
                 self._persist(
                     tokens=tokens,
-                    tokens_in=tokens_in,
-                    tokens_out=tokens_out,
-                    tokens_cached=tokens_cached,
                     cost=cost,
                     account_id=account_id,
                     iteration=iteration,
-                    role=role,
-                    model=model,
                 )
 
     # -- lifecycle ---------------------------------------------------------
@@ -564,23 +570,23 @@ class BudgetManager:
         self,
         *,
         tokens: int,
-        tokens_in: int,
-        tokens_out: int,
-        tokens_cached: int,
         cost: float,
         account_id: str | None,
         iteration: int | None,
-        role: str | None,
-        model: str | None,
     ) -> None:
-        """Write the counters through. Best-effort: in-memory truth wins."""
+        """Write the counters through to ``governor_budget``.
+
+        ``account_usage_daily`` is owned by the provider pool's usage sink
+        (:class:`app.accounts.service.SqlUsageSink`), which already receives one
+        record per call. Writing it here as well would count every token twice
+        and inflate the per-account monthly spend that the Step-1 budgets read.
+        """
         factory = self._session_factory
         assert factory is not None
         run_id = self._run_id or "unbound-run"
         iteration_key = iteration if iteration is not None else -1
         account_key = account_id or "__run__"
         bucket = self._key(account_id) if account_id is not None else "__run__"
-        today = self._today()
         try:
             with factory() as session:
                 session.execute(
@@ -609,40 +615,20 @@ class BudgetManager:
                         "updated_at": datetime.now(tz=UTC).isoformat(),
                     },
                 )
-                if account_id is not None and role is not None and model is not None:
-                    session.execute(
-                        text(
-                            """
-                            INSERT INTO account_usage_daily
-                                (account_id, date, role, model, tokens_in, tokens_out,
-                                 tokens_cached, est_cost)
-                            VALUES
-                                (:account_id, :day, :role, :model, :tokens_in, :tokens_out,
-                                 :tokens_cached, :cost)
-                            ON CONFLICT(account_id, date, role, model)
-                            DO UPDATE SET
-                                tokens_in = tokens_in + :tokens_in,
-                                tokens_out = tokens_out + :tokens_out,
-                                tokens_cached = tokens_cached + :tokens_cached,
-                                est_cost = est_cost + :cost
-                            """
-                        ),
-                        {
-                            "account_id": account_id,
-                            "day": today.isoformat(),
-                            "role": role,
-                            "model": model,
-                            "tokens_in": tokens_in,
-                            "tokens_out": tokens_out,
-                            "tokens_cached": tokens_cached,
-                            "cost": cost,
-                        },
-                    )
                 session.commit()
         except Exception as exc:  # pragma: no cover - storage failure path
-            # Persistence is a convenience, not the source of truth for this
-            # process. Log at debug so a missing table cannot stop a run.
-            logger.debug("budget persistence failed: %s", exc)
+            # The in-memory counters stay correct, but a caller that believes
+            # ``record`` is durable must be able to see that it is not.
+            self._persistence_failures += 1
+            if self._persistence_failures == 1:
+                logger.warning(
+                    "budget persistence failed for run %s; counters continue in memory "
+                    "and will not be restored after a restart: %s",
+                    run_id,
+                    exc,
+                )
+            else:
+                logger.debug("budget persistence failed again: %s", exc)
 
     def _restore(self) -> None:
         """Reload counters for ``run_id`` from ``governor_budget``."""

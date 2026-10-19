@@ -190,11 +190,16 @@ class TelemetryStore:
 
     # -- writes ------------------------------------------------------------
     def record(self, record: CallRecord) -> None:
-        """Append one call record (thread-safe, persisted when configured)."""
+        """Append one call record (thread-safe, persisted when configured).
+
+        The database write happens *outside* the lock: every query in this store
+        takes the same lock, and holding it across disk I/O would make a slow
+        write stall the loop controller's metrics reads.
+        """
         with self._lock:
             self._records.append(record)
-            if self._session_factory is not None:
-                self._persist(record)
+        if self._session_factory is not None:
+            self._persist(record)
 
     def record_call(
         self,

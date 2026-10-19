@@ -166,7 +166,6 @@ def describe_resolution(
             "tier": tier.value,
             "model": binding.model.strip(),
             "source": "binding",
-            "binding_id": getattr(binding, "id", None),
         }
     model = resolve_model(role, policies, binding=None, tier_models=tier_models)
     return {

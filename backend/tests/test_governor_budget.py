@@ -238,6 +238,37 @@ def test_month_buckets_reset_on_the_first_of_the_next_month() -> None:
     assert month_key("acc", current[0]) == "acc:2026-11"
 
 
+def test_iteration_status_requires_an_iteration() -> None:
+    """Silently reporting 0 used would tell the loop it has full headroom."""
+    manager = BudgetManager(make_policies())
+
+    with pytest.raises(ValueError, match="iteration is required"):
+        manager.status(BudgetLevel.ITERATION)
+
+
+def test_persistence_failures_are_counted_and_visible(session_factory) -> None:
+    """'Atomic and persisted' must not quietly become 'in-memory only'."""
+    manager = BudgetManager(make_policies(), run_id="run-broken", session_factory=session_factory)
+    with session_factory() as session:
+        from sqlalchemy import text
+
+        session.execute(text("DROP TABLE governor_budget"))
+        session.commit()
+
+    manager.record(usage(100))
+
+    assert manager.persistence_failures == 1
+    assert manager.run_used == 100, "the in-memory truth is kept"
+
+
+def test_non_positive_task_budget_is_rejected() -> None:
+    """A zero or negative task budget is a caller bug, not a ceiling."""
+    manager = BudgetManager(make_policies())
+
+    with pytest.raises(ValueError, match="task_budget must be > 0"):
+        manager.precheck(10, task_budget=0)
+
+
 def test_snapshot_reports_every_level() -> None:
     """The loop controller gets one object with run, iteration, call and account."""
     manager = BudgetManager(
@@ -332,8 +363,12 @@ def test_counters_survive_a_new_manager_on_the_same_database(
     assert restored.account_month_used("acc") == 2_000
 
 
-def test_persistence_also_updates_account_usage_daily(session_factory) -> None:
-    """The governor's roll-ups agree with the account store's own table."""
+def test_governor_does_not_write_account_usage_daily(session_factory) -> None:
+    """One writer per table: the pool's SqlUsageSink already bills this call.
+
+    A second write here would double every token and every cent in the
+    per-account monthly view that the Step-1 budgets are read from.
+    """
     from sqlalchemy import text
 
     manager = BudgetManager(make_policies(), run_id="run-usage", session_factory=session_factory)
@@ -346,15 +381,14 @@ def test_persistence_also_updates_account_usage_daily(session_factory) -> None:
     )
 
     with session_factory() as session:
-        row = session.execute(
-            text(
-                "SELECT tokens_in, tokens_out, tokens_cached FROM account_usage_daily "
-                "WHERE account_id = :account_id AND role = :role AND model = :model"
-            ),
-            {"account_id": "acc", "role": "writer", "model": "claude-sonnet-4"},
-        ).one()
+        rows = session.execute(text("SELECT COUNT(*) FROM account_usage_daily")).scalar()
+        persisted = session.execute(
+            text("SELECT tokens_used FROM governor_budget WHERE run_id = :run_id"),
+            {"run_id": "run-usage"},
+        ).scalar()
 
-    assert tuple(row) == (100, 50, 25)
+    assert rows == 0, "the governor must not duplicate the usage sink's roll-up"
+    assert persisted == 175
 
 
 def test_hierarchical_budget_alias_still_points_at_the_manager() -> None:

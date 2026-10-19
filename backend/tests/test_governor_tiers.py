@@ -125,7 +125,6 @@ def test_describe_resolution_explains_the_source(policies: Policies) -> None:
         "tier": "mid",
         "model": "custom-writer",
         "source": "binding",
-        "binding_id": None,
     }
     assert from_tier["source"] == "tier"
     assert from_tier["model"] == DEFAULT_TIER_MODELS[ModelTier.MID]

@@ -34,7 +34,7 @@ Trimming (only when the prompt exceeds the ceiling)
 ---------------------------------------------------
 1. older digest detail,
 2. optional skill bodies,
-3. source-card notes (snippets shortened, then unreferenced cards dropped).
+3. source-card notes (snippets shortened to their first sentence).
 
 The task and the section being edited are **never** truncated. If the request is
 still too large, :class:`ContextTooLarge` is raised so the orchestrator can split
@@ -45,7 +45,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -591,8 +591,15 @@ def build(
     selected_skills = list(
         _field(run_state, "selected_skills") or _field(run_state, "skill_bodies") or []
     )
-    source_cards = list(_field(run_state, "source_cards") or _field(run_state, "cards") or [])
     referenced = {str(source_id) for source_id in (task.source_ids or [])}
+    # The layout names "source cards the task references": a writer gets the
+    # cards its task was planned around, not the whole source store. Sending
+    # every card would grow linearly with the bibliography on every call.
+    source_cards = [
+        card
+        for card in (_field(run_state, "source_cards") or _field(run_state, "cards") or [])
+        if _card_id(card) in referenced
+    ]
 
     digest_raw = _field(run_state, "digest")
     if digest_raw is None:
@@ -669,15 +676,6 @@ def build(
         semi = "\n\n".join(part for part in (skills_text, short_cards) if part)
         total = _prompt_tokens(stable, semi, volatile)
 
-        if total > ceiling and referenced:
-            # Drop cards the task does not reference; the writer cites by id and
-            # anything it needs must be reachable, so keep only those.
-            kept_cards = [card for card in source_cards if _card_id(card) in referenced]
-            if kept_cards:
-                kept_text = _render_cards(kept_cards, referenced, short=True)
-                semi = "\n\n".join(part for part in (skills_text, kept_text) if part)
-                total = _prompt_tokens(stable, semi, volatile)
-
     if total > ceiling:
         raise ContextTooLarge(
             f"prompt is {total} tokens after all trims (ceiling {ceiling}); "
@@ -694,6 +692,10 @@ def build(
     )
     if not isinstance(output_cap, int) or output_cap <= 0:
         output_cap = min(4_000, max(256, ceiling // 4))
+    # A task's token_budget is a ceiling the agent is graded against; asking the
+    # provider for more output than that guarantees an overrun the precheck
+    # cannot see, because output tokens are only real after the call.
+    output_cap = min(output_cap, task.token_budget)
 
     system_blocks = [SystemBlock(text=stable, cache=True)]
     if semi:
@@ -749,16 +751,31 @@ class ContextBuilder:
                 enriched.setdefault("policies", self._policies)
             return enriched
 
-        for attr, value in (
-            ("root_rules", self._root_rules),
-            ("rubric_excerpt", self._rubric_excerpt),
-            ("skills", self._skill_index),
-            ("policies", self._policies),
-        ):
+        defaults = {
+            "root_rules": self._root_rules,
+            "rubric_excerpt": self._rubric_excerpt,
+            "skills": self._skill_index,
+            "policies": self._policies,
+        }
+
+        # A dataclass RunState is copied, never mutated: the same state is
+        # reused across tasks and builders, and silently writing one builder's
+        # rules into it would make the next builder's defaults unreachable.
+        if is_dataclass(run_state) and not isinstance(run_state, type):
+            changes = {
+                attr: value
+                for attr, value in defaults.items()
+                if value is not None
+                and hasattr(run_state, attr)
+                and not getattr(run_state, attr, None)
+            }
+            return replace(run_state, **changes) if changes else run_state
+
+        for attr, value in defaults.items():
             if value is not None and not getattr(run_state, attr, None):
                 try:
                     setattr(run_state, attr, value)
-                except (AttributeError, ValueError):  # frozen state: builder default not applied
+                except (AttributeError, ValueError):  # frozen object: default not applied
                     continue
         return run_state
 
