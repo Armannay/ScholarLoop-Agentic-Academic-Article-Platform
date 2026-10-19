@@ -40,13 +40,16 @@ backend/app/
   providers/   LLMProvider Protocol, ProviderError family, MockProvider
   api/         FastAPI: health, effective config, contract schemas
   article/     section store, patch application, versioning, snapshots, assembly
-  accounts/ governor/ memory/ agents/ planner/ orchestrator/             # next steps
+  memory/      append-only ledger, source store, bounded claude.md digest
+  planner/     planning-only Claude client: Plan + Verdict, one bounded repair
+  orchestrator/ deterministic loop: waves, patch application, LoopController
+  accounts/ governor/ agents/                                          # next steps
 backend/tests/ contracts, config loaders, MockProvider, article store, API, secret scan
   providers/   LLMProvider Protocol, ProviderError family, MockProvider, live
                adapters (Anthropic, OpenAI-compatible) and the account pool
   accounts/    encrypted account store, argon2+JWT auth, bindings, usage, audit
   api/         FastAPI: health, config, contracts, auth, accounts, agent bindings
-  governor/ memory/ article/ agents/ planner/ orchestrator/   # next steps
+  governor/ agents/                                            # next steps
 backend/tests/ contracts, config, MockProvider, API, account store, adapters, pool
 config/        policies.yaml (loop knobs), rubric.yaml (gates, criteria, sections)
 rules/         root.rules.md + agents/<role>.rules.md   (<= 400 tokens each)
@@ -65,16 +68,11 @@ docs/          ARCHITECTURE.md, DECISIONS.md, schemas/
 
 ## Status
 
-Foundation complete: contracts, policy/rubric config, rules, provider interface with
-MockProvider, API health/config surface, CI, and the article store (independently
-versioned sections, patch application with optimistic concurrency, snapshots with a
-best-so-far pointer, markdown assembly, erosion signals). Next: accounts (encrypted
-store), the governor, the ledger/digest, the five agents, the Planner, and the loop
-controller.
-Foundation and accounts complete: contracts, policy/rubric config, rules, API, CI;
-encrypted runtime account store with per-user ownership, bindings (planner included),
-usage roll-ups and an append-only audit trail; live Anthropic and OpenAI-compatible
-adapters behind the frozen `LLMProvider` protocol; and a provider pool that resolves
-accounts at call time with dedicated / round_robin / failover strategies and a circuit
-breaker. Next: the governor, the ledger/digest, the article store with patch
-application, the five agents, the Planner, and the loop controller.
+Complete so far: contracts, policy/rubric config, rules, API, CI; the encrypted
+account store with bindings, live providers and the call-time pool; the memory layer
+(append-only ledger, source store, bounded digest); the article store (versioned
+sections, patch application, snapshots, rollback); and the control path - the
+planning-only Planner, the deterministic loop controller, and the orchestrator
+(dependency waves, serial patch application, per-iteration snapshots, erosion
+rollback, `ASK_USER` pauses), all runnable end-to-end on `MockProvider`. Next: the
+governor, the concrete five agents behind `AgentExecutor`, and the runs API.
