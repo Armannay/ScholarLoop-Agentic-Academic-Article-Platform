@@ -364,6 +364,40 @@ def test_breaker_half_open_admits_exactly_one_probe() -> None:
     assert breaker.state("a") is BreakerState.CLOSED
 
 
+@pytest.mark.asyncio
+async def test_unused_candidate_keeps_its_half_open_probe() -> None:
+    """A success on A must not spend B's probe when B was never called.
+
+    Regression: the pool asked the breaker about every candidate *before* the
+    loop, so B's half-open probe was claimed and left in flight; B then stayed
+    un-probeable for the rest of the process.
+    """
+    resolver = FakeResolver()
+    resolver.add_account(IDS[0], "k0")
+    resolver.add_account(IDS[1], "k1")
+    resolver.bind(USER, "writer", [IDS[0], IDS[1]], strategy=BindingStrategy.FAILOVER)
+
+    clock = {"now": 0.0}
+    breaker = CircuitBreaker(
+        failure_threshold=1, recheck_interval_s=10.0, clock=lambda: clock["now"]
+    )
+    breaker.record_failure(IDS[0])
+    breaker.record_failure(IDS[1])
+    clock["now"] += 11.0
+
+    pool, _ = pool_with(resolver, breaker=breaker)
+    await pool.generate(make_request(), role="writer", user_id=USER)
+    assert breaker.state(IDS[0]) is BreakerState.CLOSED
+    # B was never asked about, so its probe slot was never claimed.
+    assert breaker.state(IDS[1]) is BreakerState.OPEN
+
+    # A is gone; B's probe must still be available, or the role is dead.
+    resolver.accounts.pop(IDS[0])
+    resolver.bind(USER, "writer", [IDS[1]], strategy=BindingStrategy.DEDICATED)
+    await pool.generate(make_request(), role="writer", user_id=USER)
+    assert breaker.state(IDS[1]) is BreakerState.CLOSED
+
+
 def test_breaker_releases_a_probe_that_never_reached_a_provider() -> None:
     """If resolution fails, the claimed half-open probe must be given back."""
     clock = {"now": 0.0}

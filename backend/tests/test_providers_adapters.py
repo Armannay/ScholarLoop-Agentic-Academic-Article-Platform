@@ -375,6 +375,36 @@ async def test_openai_compatible_response_format_fallback() -> None:
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_openai_compatible_max_tokens_fallback() -> None:
+    """Models that renamed the cap get one retry with ``max_completion_tokens``."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        if "max_tokens" in body:
+            return httpx.Response(
+                400,
+                json={
+                    "error": {
+                        "message": (
+                            "Unsupported parameter: 'max_tokens' is not supported "
+                            "with this model. Use 'max_completion_tokens' instead."
+                        )
+                    }
+                },
+            )
+        assert "max_completion_tokens" in body
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}], "usage": {}})
+
+    route = respx.post(OPENAI_URL).mock(side_effect=handler)
+    provider = OpenAICompatibleProvider(api_key(), base_url="https://openrouter.example/api/v1")
+    response = await provider.generate(make_request())
+    await provider.aclose()
+    assert response.text == "ok"
+    assert route.call_count == 2
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_openai_compatible_auth_error_is_not_retried() -> None:
     route = respx.post(OPENAI_URL).mock(
         return_value=httpx.Response(401, json={"error": {"message": "nope"}})

@@ -303,18 +303,16 @@ class ProviderPool:
             )
 
         candidates = self._candidates(binding, user_id=user_id)
-        usable = [account_id for account_id in candidates if self._breaker.allow(account_id)]
-        if not usable:
-            raise NoAccountAvailable(
-                f"every account for role {role!r} is unavailable "
-                "(disabled, deleted, or circuit open)",
-                provider=None,
-                role=role,
-            )
-
         resolved_model = model or binding.model
         last_error: ProviderError | None = None
-        for account_id in usable:
+        tried_any = False
+        for account_id in candidates:
+            # Ask the breaker at the moment of the attempt. Claiming a half-open
+            # probe up front burns it for a candidate that may never be called,
+            # and a claimed probe is only released by a success or a failure.
+            if not self._breaker.allow(account_id):
+                continue
+            tried_any = True
             try:
                 resolved = self._resolver.load_for_call(account_id)
             except NoAccountAvailable as exc:
@@ -386,6 +384,13 @@ class ProviderPool:
             )
             return response
 
+        if not tried_any:
+            raise NoAccountAvailable(
+                f"every account for role {role!r} is unavailable "
+                "(disabled, deleted, or circuit open)",
+                provider=None,
+                role=role,
+            )
         if last_error is not None and not isinstance(last_error, NoAccountAvailable):
             raise last_error
         raise NoAccountAvailable(f"no usable account for role {role!r}", provider=None, role=role)

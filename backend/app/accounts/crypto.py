@@ -306,6 +306,12 @@ def rotate_master_key(
             ),
         )
     )
+    if old_key is None:
+        # The caller rotated the key this process was using (``old_key=None`` means
+        # "the configured key"). Adopt it now: every row was just re-encrypted, and
+        # the next decrypt would otherwise present the old KEK to the new blobs.
+        configure_master_key(new_key)
+
     return RotationReport(
         rotated=rotated,
         skipped=skipped,

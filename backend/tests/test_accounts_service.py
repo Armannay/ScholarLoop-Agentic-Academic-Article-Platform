@@ -103,6 +103,19 @@ def test_patch_rotates_key_and_updates_mask_and_fingerprint(
     assert account_service.decrypt_key(row) == new_key
 
 
+def test_patch_with_explicit_null_key_is_refused_not_ignored(
+    account_service: AccountService, user_row
+) -> None:
+    """``{"api_key": null}`` is ambiguous: refuse instead of silently keeping the key."""
+    view = make_account(account_service, user_row.id)
+    with pytest.raises(ContractViolation, match="cannot be null"):
+        account_service.patch(user_row.id, view.id, AccountPatch(api_key=None))
+    # An omitted key still means "keep it".
+    assert account_service.patch(user_row.id, view.id, AccountPatch(label="renamed")).label == (
+        "renamed"
+    )
+
+
 def test_patch_budget_can_be_set_and_cleared(account_service: AccountService, user_row) -> None:
     view = make_account(account_service, user_row.id)
     assert view.budget.tokens == 100_000
@@ -189,6 +202,32 @@ def test_delete_with_disable_roles_disables_the_binding(
     assert binding is not None and binding.enabled is False
     session.commit()
     assert session.get(AccountRow, view.id) is None
+
+
+def test_delete_protects_a_role_whose_other_candidates_are_unusable(
+    account_service: AccountService, binding_service: BindingService, user_row
+) -> None:
+    """The sole *usable* account of an enabled role is protected too.
+
+    Regression: protection compared ``account_ids`` with ``[id]``, so a binding
+    of [A, B] where B is disabled let A be deleted, leaving the role enabled
+    with nothing that can serve a call.
+    """
+    live = make_account(account_service, user_row.id, label="live")
+    dead = make_account(account_service, user_row.id, label="dead", key=api_key("Disabled0key1234"))
+    account_service.patch(user_row.id, dead.id, AccountPatch(status=AccountStatus.DISABLED))
+    _bind(binding_service, user_row.id, BindingRole.WRITER, [live.id, dead.id])
+    with pytest.raises(ConflictError) as excinfo:
+        account_service.delete(user_row.id, live.id)
+    assert excinfo.value.context["roles"] == ["writer"]
+    assert account_service.get(user_row.id, live.id).id == live.id
+
+    # disable_roles=true still deletes, but the role is reported and left off.
+    result = account_service.delete(user_row.id, live.id, disable_roles=True)
+    assert result.disabled_roles == ["writer"]
+    binding = binding_service.get(user_row.id, BindingRole.WRITER)
+    assert binding is not None and binding.enabled is False
+    assert binding.account_ids == [dead.id]
 
 
 def test_delete_with_replacement_swaps_the_binding(
