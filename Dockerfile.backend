@@ -17,6 +17,7 @@ RUN pip install --upgrade pip && pip install -e ".[dev]"
 # Config, rules and AI-facing prompts are runtime data, not code.
 COPY config ./config
 COPY rules ./rules
+COPY skills ./skills
 COPY docs/schemas ./docs/schemas
 
 # Run as a non-root user; the SQLite dev DB lives in a writable data dir.

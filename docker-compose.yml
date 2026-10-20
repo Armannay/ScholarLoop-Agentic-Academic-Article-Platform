@@ -26,6 +26,7 @@ services:
       - ./backend:/repo/backend:ro
       - ./config:/repo/config:ro
       - ./rules:/repo/rules:ro
+      - ./skills:/repo/skills:ro
       - scholarloop-data:/data
     ports:
       - "8000:8000"

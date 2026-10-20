@@ -19,16 +19,19 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 | Core | `app/core/` | settings, policies, rubric, ULIDs, hashing, redaction, logging |
 | Accounts | `app/accounts/` | encrypted key store; keys resolved **at call time** |
 | Providers | `app/providers/` | `LLMProvider` Protocol, `ProviderError` family, `MockProvider` |
-| Governor | `app/governor/` | token budgets, caps, per-call accounting |
+| Governor | `app/governor/` | token budgets, caps, per-call accounting (Step 5 seam: `app.agents.governor`) |
 | Memory | `app/memory/` | append-only ledger, bounded digest, compaction |
 | Article | `app/article/` | section store, patch application, versioning |
-| Agents | `app/agents/` | architect, researcher, writer, reviewer, validator |
+| Agents | `app/agents/` | generic runtime, context builder, registry (role agents: Step 7) |
+| Skills | `app/skills/` | lazy `SKILL.md` loader, deterministic selection, lint |
+| Tools | `app/tools/` | scoped registry: role/project grants, untrusted bounded results |
 | Planner | `app/planner/` | plan construction and verdict evaluation (LLM, JSON-schema) |
 | Orchestrator | `app/orchestrator/` | the loop: state machine, scheduling, decision |
 | API | `app/api/` | FastAPI surface (`/api/health`, `/api/config`, contracts) |
 
-`contracts`, `core`, `providers`, `scripts`, `api` and `article` exist today; the rest
-are the interfaces this foundation was built to accept.
+`contracts`, `core`, `providers`, `accounts`, `memory`, `article`, `agents`, `skills`,
+`tools`, `scripts` and `api` exist today; `governor`, `planner` and `orchestrator`
+remain the interfaces this foundation was built to accept.
 
 ### Article store (implemented)
 
@@ -47,8 +50,22 @@ document (body, `version`, `sha256`, words, citations, status).
   checkpoint - that is the loop's rollback path out of erosion.
 * **Erosion signals.** `recurrence.py` reports a body that round-tripped
   (`hash_recurred`) and edits that measured no gain (`edits_without_gain`).
-Only `contracts`, `core`, `providers`, `accounts`, `scripts` and `api` exist today;
-the rest are the interfaces this foundation was built to accept. The account store
+### Agent runtime (implemented)
+
+`app/agents/base.py` is the single execution path every role agent inherits:
+`ContextBuilder.build` (rules, skill index, selected skills, authorised tool schemas and
+task references) -> `Governor.precheck` -> one JSON-schema `provider.generate` ->
+`AgentResult` and patch-scope validation -> at most one repair (validation errors and the
+previous output, never the original context) -> measured `entry.tokens`. A provider error
+is never converted into a repair. `agents/registry.py` maps roles to agents, resolves the
+`AgentBinding` at call time (hot-swap safe) and refuses unknown or disabled roles.
+`skills/loader.py` keeps bodies out of the prompt until selected (at most two,
+deterministic, budgeted), and `tools/base.py` denies by default, narrows per project,
+validates arguments and returns size-capped untrusted results.
+
+Only `contracts`, `core`, `providers`, `accounts`, `memory`, `article`, `agents`,
+`skills`, `tools`, `scripts` and `api` exist today; `governor`, `planner` and
+`orchestrator` remain the interfaces this foundation was built to accept. The account store
 (`app/accounts/`) holds provider keys encrypted at rest (AES-GCM envelope,
 `APP_MASTER_KEY`), resolves them at call time through `app/providers/pool.py`, and
 ships live adapters for Anthropic (Claude Console keys for the Planner) and

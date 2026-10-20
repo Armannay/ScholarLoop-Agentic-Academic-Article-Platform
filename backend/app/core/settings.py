@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     policies_path: Path = Path("config/policies.yaml")
     rubric_path: Path = Path("config/rubric.yaml")
     rules_dir: Path = Path("rules")
+    skills_dir: Path = Path("skills")
     project_overrides_path: Path | None = None
 
     # 0.0.0.0 is deliberate: the API must be reachable from inside a container and
@@ -120,6 +121,11 @@ class Settings(BaseSettings):
     def rules_path(self) -> Path:
         """Absolute path to rules/."""
         return self.resolve(self.rules_dir)
+
+    @property
+    def skills_path(self) -> Path:
+        """Absolute path to skills/ (``<name>/SKILL.md`` prompt assets)."""
+        return self.resolve(self.skills_dir)
 
     @property
     def live_providers_enabled(self) -> bool:

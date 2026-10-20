@@ -37,19 +37,21 @@ Postgres instead of SQLite: `docker compose --profile postgres up`.
 backend/app/
   contracts/   Pydantic v2 wire format (extra=forbid, schema_version=1)
   core/        settings, policies, rubric, ids, hashing, redaction, logging
-  providers/   LLMProvider Protocol, ProviderError family, MockProvider
-  api/         FastAPI: health, effective config, contract schemas
-  article/     section store, patch application, versioning, snapshots, assembly
-  accounts/ governor/ memory/ agents/ planner/ orchestrator/             # next steps
-backend/tests/ contracts, config loaders, MockProvider, article store, API, secret scan
   providers/   LLMProvider Protocol, ProviderError family, MockProvider, live
-               adapters (Anthropic, OpenAI-compatible) and the account pool
+               adapters (Anthropic, OpenAI-compatible), call-time account pool
   accounts/    encrypted account store, argon2+JWT auth, bindings, usage, audit
+  memory/      append-only ledger, bounded digest, compactor, source store
+  article/     section store, patch application, versioning, snapshots, assembly
+  agents/      generic Agent runtime, context builder, registry, governor seam
+  skills/      lazy SKILL.md loader, deterministic selection, lint CLI
+  tools/       deny-by-default scoped tool registry (concrete tools: Step 6)
   api/         FastAPI: health, config, contracts, auth, accounts, agent bindings
-  governor/ memory/ article/ agents/ planner/ orchestrator/   # next steps
-backend/tests/ contracts, config, MockProvider, API, account store, adapters, pool
+  governor/ planner/ orchestrator/                          # next steps
+backend/tests/ contracts, config, providers, accounts, memory, article, agents,
+               skills, tools, API, account store, secret scan
 config/        policies.yaml (loop knobs), rubric.yaml (gates, criteria, sections)
 rules/         root.rules.md + agents/<role>.rules.md   (<= 400 tokens each)
+skills/        <name>/SKILL.md prompt skills             (<= 400 tokens each, linted)
 frontend/      React + Vite + TypeScript status console
 docs/          ARCHITECTURE.md, DECISIONS.md, schemas/
 ```
@@ -78,3 +80,13 @@ adapters behind the frozen `LLMProvider` protocol; and a provider pool that reso
 accounts at call time with dedicated / round_robin / failover strategies and a circuit
 breaker. Next: the governor, the ledger/digest, the article store with patch
 application, the five agents, the Planner, and the loop controller.
+
+Step 5 (generic agent runtime) complete: `Agent.run(task, run_state)` builds its prompt
+through `ContextBuilder`, runs the governor precheck, makes one JSON-schema-constrained
+call, validates the `AgentResult`/`Patch` contracts, performs at most one minimal repair
+(validation errors plus the previous output only) and returns measured token usage; a
+typed role registry with enable/disable and call-time bindings; a lazy
+`skills/<name>/SKILL.md` loader with deterministic two-skill selection and
+`make skill-lint`; and a deny-by-default, project-scoped tool registry that validates
+arguments, marks results untrusted and caps their size. Next: the governor, the concrete
+tools (Step 6), the five role agents (Step 7), the Planner, and the loop controller.
