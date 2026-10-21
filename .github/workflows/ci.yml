@@ -44,6 +44,9 @@ jobs:
       - name: mypy --strict (backend/app)
         run: mypy
 
+      - name: skill lint (front matter + token ceilings)
+        run: python -m app.skills.lint --skills-dir skills
+
       - name: pytest (MockProvider only - no live API calls)
         run: python -m pytest -q
 

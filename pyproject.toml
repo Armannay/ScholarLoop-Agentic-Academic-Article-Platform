@@ -104,4 +104,7 @@ markers = [
   "accounts: account store, crypto, auth and bindings tests",
   "security: secret-leak and redaction tests",
   "migrations: alembic schema tests",
+  "agents: generic agent runtime and registry tests",
+  "skills: skill loader, selection and lint tests",
+  "tools: scoped tool registry tests",
 ]

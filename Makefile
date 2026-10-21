@@ -6,7 +6,7 @@ PIP   := $(VENV)/bin/pip
 
 .DEFAULT_GOAL := help
 
-.PHONY: help venv install lint format type test check schemas schemas-check migrate migration run backend frontend-install frontend-build frontend-dev dev up down clean
+.PHONY: help venv install lint format type test check skill-lint schemas schemas-check migrate migration run backend frontend-install frontend-build frontend-dev dev up down clean
 
 help: ## show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -34,7 +34,10 @@ type: ## mypy --strict on backend/app
 test: ## pytest (MockProvider only - never live APIs)
 	$(PY) -m pytest
 
-check: lint type test ## the gate every step must pass
+skill-lint: ## validate skills/ front matter and token budgets
+	$(PY) -m app.skills.lint --skills-dir skills
+
+check: lint type skill-lint test ## the gate every step must pass
 
 schemas: ## export contracts JSON Schemas to docs/schemas/
 	$(PY) -m app.scripts.export_schemas --out docs/schemas
