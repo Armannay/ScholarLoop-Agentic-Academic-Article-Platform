@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "meets_minimum": false,
+  "missing": [
+    "citation coverage gate",
+    "word floor gate"
+  ],
+  "risks": [
+    "patch churn on intro if re-cut lands late"
+  ],
+  "recommendation": "continue"
+}

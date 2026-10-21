@@ -1,0 +1,25 @@
+{
+  "kind": "plan_request",
+  "run_id": "demo-000",
+  "from": "arena/orchestrator",
+  "to": "planner/claude",
+  "iteration": 1,
+  "digest": {
+    "file": "outbox/claude.md",
+    "tokens": 429,
+    "max_tokens": 2000
+  },
+  "brief_file": "outbox/brief.json",
+  "reply": {
+    "kind": "plan",
+    "schema": "docs/schemas/Plan.json",
+    "path": "inbox/plan.v2.json",
+    "max_output_tokens": 4000
+  },
+  "caps": {
+    "call_input_cap": 24000,
+    "iteration_token_cap": 120000,
+    "run_token_cap": 800000
+  },
+  "note": "Planner plans and evaluates only; it never writes article text."
+}

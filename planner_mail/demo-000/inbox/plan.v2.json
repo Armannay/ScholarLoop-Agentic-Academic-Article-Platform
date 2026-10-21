@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "version": 2,
+  "goal": "Raise Q to >= 75 with both failed gates closed, without eroding drafted prose.",
+  "tasks": [
+    {
+      "schema_version": 1,
+      "id": "01M5FYKZTK9SJZ3H1FTC793KWQ",
+      "title": "Re-cut section bounds for related work",
+      "role": "architect",
+      "section_ids": [],
+      "source_ids": [],
+      "instructions": "Split related_work into two sections if citation density exceeds 6 per 300 words; freeze ids.",
+      "acceptance": [
+        "new section ids registered",
+        "no body text moved yet"
+      ],
+      "token_budget": 4000,
+      "depends_on": []
+    },
+    {
+      "schema_version": 1,
+      "id": "01M5FYKZTKVPXQEYMMRK16WA09",
+      "title": "Close provenance gaps on two claims",
+      "role": "researcher",
+      "section_ids": [],
+      "source_ids": [],
+      "instructions": "Resolve the two open provenance issues with source cards or retract the claims.",
+      "acceptance": [
+        "both issues closed or claims retracted",
+        "source cards carry quotes + offsets"
+      ],
+      "token_budget": 6000,
+      "depends_on": []
+    },
+    {
+      "schema_version": 1,
+      "id": "01M5FYKZTK49P282DTX35TJESM",
+      "title": "Patch intro and method against reviewer issues",
+      "role": "writer",
+      "section_ids": [],
+      "source_ids": [],
+      "instructions": "Apply patch ops only; cite every retained claim; reach the word floor.",
+      "acceptance": [
+        "zero uncited claims",
+        "word count >= 2200"
+      ],
+      "token_budget": 8000,
+      "depends_on": [
+        "01M5FYKZTKVPXQEYMMRK16WA09"
+      ]
+    },
+    {
+      "schema_version": 1,
+      "id": "01M5FYKZTKPKMK01SKJRSWB51D",
+      "title": "Re-review patched sections",
+      "role": "reviewer",
+      "section_ids": [],
+      "source_ids": [],
+      "instructions": "Verify reviewer issues closed; open new ones only with severity and evidence.",
+      "acceptance": [
+        "issue list consistent with ledger"
+      ],
+      "token_budget": 5000,
+      "depends_on": [
+        "01M5FYKZTK49P282DTX35TJESM"
+      ]
+    },
+    {
+      "schema_version": 1,
+      "id": "01M5FYKZTKH7HPNAGWA91Y3N7P",
+      "title": "Re-measure quality and erosion",
+      "role": "validator",
+      "section_ids": [],
+      "source_ids": [],
+      "instructions": "Emit QualityReport; compare Q history for plateau or regression.",
+      "acceptance": [
+        "8 gates reported",
+        "Q delta stated"
+      ],
+      "token_budget": 4000,
+      "depends_on": [
+        "01M5FYKZTKPKMK01SKJRSWB51D"
+      ]
+    }
+  ]
+}

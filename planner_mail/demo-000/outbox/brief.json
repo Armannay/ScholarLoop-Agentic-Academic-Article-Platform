@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "topic": "How a single coding agent can embody a multi-role article loop while a planning-only Planner holds the plan",
+  "article_type": "review",
+  "audience": "builders of agentic writing systems",
+  "language": "en",
+  "target_words": 2400,
+  "citation_style": "APA7",
+  "must_include": [],
+  "must_avoid": [],
+  "provided_data": []
+}
