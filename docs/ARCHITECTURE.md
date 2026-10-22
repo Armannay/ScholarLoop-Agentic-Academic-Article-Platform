@@ -19,7 +19,7 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 | Core | `app/core/` | settings, policies, rubric, ULIDs, hashing, redaction, logging |
 | Accounts | `app/accounts/` | encrypted key store; keys resolved **at call time** |
 | Providers | `app/providers/` | `LLMProvider` Protocol, `ProviderError` family, `MockProvider` |
-| Governor | `app/governor/` | token budgets, caps, per-call accounting (Step 5 seam: `app.agents.governor`) |
+| Governor | `app/governor/` | nested budgets, estimation, prompt assembly, telemetry, model tiers |
 | Memory | `app/memory/` | append-only ledger, bounded digest, compaction |
 | Article | `app/article/` | section store, patch application, versioning |
 | Agents | `app/agents/` | generic runtime, context builder, registry (role agents: Step 7) |
@@ -29,9 +29,9 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 | Orchestrator | `app/orchestrator/` | the loop: state machine, scheduling, decision |
 | API | `app/api/` | FastAPI surface (`/api/health`, `/api/config`, contracts) |
 
-`contracts`, `core`, `providers`, `accounts`, `memory`, `article`, `agents`, `skills`,
-`tools`, `scripts` and `api` exist today; `governor`, `planner` and `orchestrator`
-remain the interfaces this foundation was built to accept.
+`contracts`, `core`, `providers`, `accounts`, `governor`, `memory`, `article`, `agents`,
+`skills`, `tools`, `scripts` and `api` exist today; `planner` and `orchestrator` remain
+the interfaces this foundation was built to accept.
 
 ### Article store (implemented)
 
@@ -63,13 +63,44 @@ is never converted into a repair. `agents/registry.py` maps roles to agents, res
 deterministic, budgeted), and `tools/base.py` denies by default, narrows per project,
 validates arguments and returns size-capped untrusted results.
 
-Only `contracts`, `core`, `providers`, `accounts`, `memory`, `article`, `agents`,
-`skills`, `tools`, `scripts` and `api` exist today; `governor`, `planner` and
+Only `contracts`, `core`, `providers`, `accounts`, `governor`, `memory`, `article`,
+`agents`, `skills`, `tools`, `scripts` and `api` exist today; `planner` and
 `orchestrator` remain the interfaces this foundation was built to accept. The account store
 (`app/accounts/`) holds provider keys encrypted at rest (AES-GCM envelope,
 `APP_MASTER_KEY`), resolves them at call time through `app/providers/pool.py`, and
 ships live adapters for Anthropic (Claude Console keys for the Planner) and
 OpenAI-compatible services (OpenRouter et al.).
+
+### Governor (implemented)
+
+`app/governor/` is where token spend stops being a guess.
+
+* **Nested budgets** (`budget.py`): `account-month -> run -> iteration -> call`. A call
+  *reserves* its estimate before it runs and settles the provider's real usage after;
+  a reservation counts towards the ceiling, so concurrent calls cannot both spend the
+  last thousand tokens. Crossing 80 % of any level warns once, reaching 100 % refuses
+  the next call with `BudgetExceeded(level, remaining)`. Counters are atomic behind
+  `BudgetStore`: in-memory for one process, an atomically replaced JSON document to
+  survive a restart (a SQL store is the multi-worker path).
+* **Estimation** (`estimate.py`): the provider's `count_tokens` when it answers,
+  otherwise `chars / 4` plus a 15 % margin. Every estimate can be reconciled against
+  the prompt usage the provider reported, exposing signed bias, mean absolute error
+  and the margin that would have covered the samples.
+* **Context assembly** (`context_builder.py`): stable prefix (root rules, project
+  rules, role rules, rubric excerpt, skill index, brief; `cache=true`) -> semi-stable
+  (selected skill bodies, the source cards the task names) -> volatile (digest slice,
+  task, section text). Project rules are appended, never merged over, and a guard
+  rejects any attempt to remove a mandatory root rule. The prefix is byte-identical
+  across calls of one role in a run, which is what makes prompt caching pay. When the
+  prompt does not fit it trims digest detail, then optional skills, then source-card
+  notes, and finally raises `ContextTooLarge` - the task and the section being edited
+  are never truncated.
+* **Telemetry** (`telemetry.py`): one record per call, tokens by role and iteration,
+  cache-hit ratio, and token ROI (Q gained per 10k tokens) for the loop's diminishing
+  returns check.
+* **Tiers** (`tiers.py`): `policies.model_tiers` names a class (planner strong,
+  validator and compactor cheap), the provider table names the model id, and an
+  `AgentBinding.model` overrides both.
 
 ## State machine
 
