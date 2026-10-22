@@ -54,12 +54,14 @@ from app.core.errors import ConfigError, ScholarLoopError
 from app.core.hashing import content_hash
 from app.core.policies import DEFAULT_POLICIES
 from app.core.rubric import Rubric, resolve_sections
-from app.providers.base import CHARS_PER_TOKEN, estimate_tokens
+from app.providers.base import CHARS_PER_TOKEN, MESSAGE_OVERHEAD_TOKENS, estimate_tokens
 from app.skills.loader import SkillLoader, SkillSelection
 
 __all__ = [
     "DEFAULT_MAX_OUTPUT_TOKENS",
     "DIGEST_TRIM_MARKER",
+    "MAX_MESSAGE_CHARS",
+    "MAX_OUTPUT_TOKENS",
     "TASK_INSTRUCTION",
     "TRIM_ORDER",
     "ContextBuilder",
@@ -80,6 +82,11 @@ __all__ = [
 DEFAULT_MAX_OUTPUT_TOKENS: Final[int] = 4_096
 #: Prefix of a digest that had to lose its oldest detail.
 DIGEST_TRIM_MARKER: Final[str] = "[digest trimmed: newest detail retained]\n"
+#: Mirrors ``LLMMessage.text``'s ``max_length`` in CONTRACTS v1: a longer message is a
+#: contract violation, not a context-size decision, so it is refused here as one.
+MAX_MESSAGE_CHARS: Final[int] = 500_000
+#: Mirrors ``LLMRequest.max_output_tokens``'s upper bound in CONTRACTS v1.
+MAX_OUTPUT_TOKENS: Final[int] = 64_000
 
 _MANDATORY_ITEM_RE = re.compile(r"^\s*(?:\d+\.|[-*])\s+(\S.*)$")
 _REMOVAL_DIRECTIVE_RE = re.compile(
@@ -424,6 +431,11 @@ class ContextBuilder:
         output_tokens = self._max_output_tokens if max_output_tokens is None else max_output_tokens
         if limit < 1 or output_tokens < 1:
             raise ValueError("token ceilings must be >= 1")
+        if output_tokens > MAX_OUTPUT_TOKENS:
+            raise ValueError(
+                f"max_output_tokens must be <= {MAX_OUTPUT_TOKENS} (CONTRACTS v1), "
+                f"got {output_tokens}"
+            )
         # A structured call sends its schema on every request: it is prompt tokens, and
         # leaving it out of the ceiling would under-count exactly the expensive calls.
         schema_tokens = (
@@ -477,6 +489,7 @@ class ContextBuilder:
                     + _tokens(card_blocks)
                     + schema_tokens
                     + estimate_tokens(volatile_text)
+                    + MESSAGE_OVERHEAD_TOKENS
                 )
                 overflow = input_tokens - limit
                 if overflow <= 0 or budget <= 0 or not digest:
@@ -542,9 +555,23 @@ class ContextBuilder:
             )
         trims.sort(key=lambda action: TRIM_ORDER.index(action.step))
 
+        if len(volatile_text) > MAX_MESSAGE_CHARS:
+            raise ContextTooLarge(
+                f"the user message is {len(volatile_text)} characters; CONTRACTS v1 caps "
+                f"LLMMessage.text at {MAX_MESSAGE_CHARS} and the task and section text are "
+                "never truncated, so this call is refused instead.",
+                message_chars=len(volatile_text),
+                max_message_chars=MAX_MESSAGE_CHARS,
+                task_id=task.id,
+                role=task.role.value,
+            )
         semi_tokens = _tokens(skill_blocks) + _tokens(card_blocks)
         volatile_tokens = estimate_tokens(volatile_text)
-        input_tokens = stable_tokens + semi_tokens + schema_tokens + volatile_tokens
+        # Same convention as ``app.providers.base.prompt_tokens``: blocks + messages +
+        # the per-message overhead, so the governor's precheck sees this exact number.
+        input_tokens = (
+            stable_tokens + semi_tokens + schema_tokens + volatile_tokens + MESSAGE_OVERHEAD_TOKENS
+        )
         system_blocks = (*stable_blocks, *skill_blocks, *card_blocks)
         request = LLMRequest(
             system_blocks=list(system_blocks),
@@ -623,7 +650,8 @@ class ContextBuilder:
 
     def _task_cards(self, task: Task, run_state: GovernorRunState) -> list[SourceCard]:
         """Source cards the task names, in the task's own order (never the store's)."""
-        wanted = list(task.source_ids)
+        # Deduplicated, order preserved: a repeated id must not buy a second copy.
+        wanted = list(dict.fromkeys(task.source_ids))
         if not wanted:
             return []
         by_id = {card.id: card for card in run_state.sources}

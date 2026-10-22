@@ -170,7 +170,7 @@ def test_account_month_budget_is_the_outer_scope():
     assert caught.value.context["remaining"] == 40
 
 
-def test_account_month_usd_budget_is_enforced_on_estimates():
+def test_usd_budget_refusal_reports_usd_not_zero_tokens():
     limits = BudgetLimits(
         run_tokens=1_000,
         iteration_tokens=400,
@@ -183,7 +183,15 @@ def test_account_month_usd_budget_is_enforced_on_estimates():
     with pytest.raises(BudgetExceeded) as caught:
         governor.precheck(BudgetEstimate(input_tokens=10, cost_usd=0.5))
 
-    assert caught.value.context["level"] == BudgetLevel.ACCOUNT_MONTH.value
+    context = caught.value.context
+    assert context["level"] == BudgetLevel.ACCOUNT_MONTH.value
+    # The ceiling that bound is USD: reporting limit=0 and used=<tokens> would be a lie.
+    assert context["unit"] == "usd"
+    assert context["limit"] == pytest.approx(1.0)
+    assert context["used"] == pytest.approx(0.6)  # committed
+    assert context["projected"] == pytest.approx(1.1)  # committed + this call
+    assert context["remaining"] == pytest.approx(0.4)
+    assert "$" in caught.value.message
 
 
 def test_limits_from_policies_and_account_budget():
@@ -315,8 +323,10 @@ def test_usage_settles_to_the_iteration_that_made_the_call():
 
     status = governor.record(usage(40), reservation=reservation)
 
-    assert status.run.used == 40
-    assert status.iteration.used == 0  # iteration 1 made no call of its own
+    # The returned snapshot describes the call's own scope, not the advanced one.
+    assert status.scope.iteration == 0
+    assert status.iteration.used == 40
+    assert governor.status().iteration.used == 0  # iteration 1 made no call of its own
 
 
 def test_precheck_accepts_an_llm_request_for_the_agent_runtime_seam():
@@ -344,6 +354,15 @@ def test_file_store_survives_a_new_governor(tmp_path: Path):
     second = make_governor(store=FileBudgetStore(path), account_id="01ACCOUNT", period="2026-10")
     assert second.status().run.used == 50
     assert second.status().account_month.used == 50
+
+
+def test_file_store_wraps_a_write_failure(tmp_path: Path):
+    path = tmp_path / "counters.json"
+    path.mkdir()  # the target is a directory: the atomic replace cannot succeed
+    store = FileBudgetStore(path)
+
+    with pytest.raises(BudgetStoreError):
+        store.commit({"run:1": 1.0})
 
 
 def test_file_store_rejects_a_corrupt_document(tmp_path: Path):

@@ -121,6 +121,15 @@ def test_custom_model_table_overrides_the_built_in_one(policies: Policies):
 
 
 # --------------------------------------------------------------------------- errors
+def test_a_disabled_binding_does_not_resolve_a_model(policies: Policies):
+    resolver = TierResolver(policies)
+    disabled = make_binding(role=BindingRole.WRITER)
+    disabled = disabled.model_copy(update={"enabled": False})
+
+    with pytest.raises(ConfigError, match="disabled"):
+        resolver.resolve("writer", binding=disabled, provider=AccountProvider.ANTHROPIC)
+
+
 def test_a_binding_for_another_role_is_rejected(policies: Policies):
     resolver = TierResolver(policies)
     binding = make_binding(role=BindingRole.REVIEWER)

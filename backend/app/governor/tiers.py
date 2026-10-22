@@ -185,6 +185,14 @@ class TierResolver:
                 raise ValueError(
                     f"binding is for role {binding.role.value!r}, not {resolved_role.value!r}"
                 )
+            if not binding.enabled:
+                # A disabled binding is not a model preference: resolving it would send
+                # the call to a configuration the user has switched off.
+                raise ConfigError(
+                    f"the binding for role {resolved_role.value!r} is disabled; "
+                    "resolve without it or enable it in the binding store",
+                    role=resolved_role.value,
+                )
             if binding.model:
                 return ModelChoice(
                     role=resolved_role,

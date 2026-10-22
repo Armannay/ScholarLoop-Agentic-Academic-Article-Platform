@@ -40,11 +40,11 @@ from __future__ import annotations
 import json
 import threading
 from collections.abc import Callable, Iterator, Mapping
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import AbstractContextManager, contextmanager, suppress
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Final, Protocol, runtime_checkable
+from typing import Any, Final, Protocol, runtime_checkable
 
 from app.contracts.account import MonthlyBudget
 from app.contracts.ledger import TokenUsage
@@ -512,8 +512,16 @@ class FileBudgetStore:
                     encoding="utf-8",
                 )
                 temporary.replace(self._path)
+            except OSError as exc:
+                # Persistence failures are expected failures: they must cross the module
+                # boundary as BudgetStoreError, never as a bare OSError.
+                raise BudgetStoreError(
+                    f"cannot write the budget store at {self._path}: {exc}",
+                    path=str(self._path),
+                ) from exc
             finally:
-                temporary.unlink(missing_ok=True)
+                with suppress(OSError):  # the target may itself be unwritable
+                    temporary.unlink(missing_ok=True)
 
 
 def _would_exceed(usage: LevelUsage) -> bool:
@@ -686,21 +694,7 @@ class BudgetGovernor:
             for usage in levels:
                 if not _would_exceed(usage):
                     continue
-                limit = usage.limit or 0
-                committed = self._level(counters, usage.level).used
-                raise BudgetExceeded(
-                    f"{usage.level.value} budget would be exceeded: "
-                    f"{usage.used} committed of {limit} "
-                    f"(call projects {projected.tokens} tokens)",
-                    level=usage.level.value,
-                    remaining=max(0, limit - committed),
-                    limit=limit,
-                    used=usage.used,
-                    run_id=self._scope.run_id,
-                    iter=self._scope.iteration,
-                    **({"role": role} if role is not None else {}),
-                    **({"task_id": task.id} if task is not None else {}),
-                )
+                raise self._exceeded(usage, counters, projected, role=role, task=task)
             keys = self._counter_keys()
             new = dict(counters)
             for key in keys:
@@ -745,7 +739,7 @@ class BudgetGovernor:
                     "reservation for run %s was already settled; duplicate record ignored",
                     reservation.scope.run_id,
                 )
-                return self._status_from(counters)
+                return self._status_from(counters, scope=reservation.scope)
             if reservation is not None and reservation.is_open:
                 for key in reservation.keys:
                     counters[key] = max(0.0, counters.get(key, 0.0) - reservation.reserved_tokens)
@@ -765,7 +759,9 @@ class BudgetGovernor:
                     usd_key = f"{key}:usd"
                     counters[usd_key] = counters.get(usd_key, 0.0) + cost
             self._store.commit(counters)
-            status = self._status_from(counters)
+            status = self._status_from(
+                counters, scope=reservation.scope if reservation is not None else None
+            )
         self._emit_warnings(status)
         return status
 
@@ -798,6 +794,59 @@ class BudgetGovernor:
             )
         return BudgetEstimate(input_tokens=estimate)
 
+    def _exceeded(
+        self,
+        usage: LevelUsage,
+        counters: Mapping[str, float],
+        projected: BudgetEstimate,
+        *,
+        role: str | None,
+        task: Task | None,
+    ) -> BudgetExceeded:
+        """Refusal for one level, expressed in the unit that level is measured in.
+
+        A USD-only ceiling used to be reported as ``limit=0, used=<tokens>``, which is
+        not a number anybody can act on. ``unit`` says which pair ``limit``/``used``
+        belong to.
+        """
+        committed = self._level(counters, usage.level)
+        context: dict[str, Any] = {
+            "level": usage.level.value,
+            "run_id": self._scope.run_id,
+            "iter": self._scope.iteration,
+        }
+        if role is not None:
+            context["role"] = role
+        if task is not None:
+            context["task_id"] = task.id
+        if (
+            usage.cost_limit_usd is not None
+            and usage.cost_used_usd > usage.cost_limit_usd
+            and (usage.limit is None or usage.used <= usage.limit)
+        ):
+            return BudgetExceeded(
+                f"{usage.level.value} USD budget would be exceeded: "
+                f"${committed.cost_used_usd:.4f} committed of ${usage.cost_limit_usd:.2f} "
+                f"(call estimates ${projected.cost_usd:.4f})",
+                remaining=max(0.0, usage.cost_limit_usd - committed.cost_used_usd),
+                limit=usage.cost_limit_usd,
+                used=committed.cost_used_usd,
+                projected=usage.cost_used_usd,
+                unit="usd",
+                **context,
+            )
+        limit = usage.limit or 0
+        return BudgetExceeded(
+            f"{usage.level.value} budget would be exceeded: {committed.used} committed of "
+            f"{limit} (call projects {projected.tokens} tokens)",
+            remaining=max(0, limit - committed.used),
+            limit=limit,
+            used=committed.used,
+            projected=usage.used,
+            unit="tokens",
+            **context,
+        )
+
     def _counter_keys(self) -> tuple[str, ...]:
         """Every counter a reservation touches, outer scope first."""
         keys: list[str] = []
@@ -807,9 +856,15 @@ class BudgetGovernor:
         keys.extend((self._scope.run_key, self._scope.iteration_key))
         return tuple(keys)
 
-    def _level(self, counters: Mapping[str, float], level: BudgetLevel) -> LevelUsage:
+    def _level(
+        self,
+        counters: Mapping[str, float],
+        level: BudgetLevel,
+        *,
+        scope: BudgetScope | None = None,
+    ) -> LevelUsage:
         """Committed usage for one level, without projection."""
-        key = self._key_for(level)
+        key = self._key_for(level, scope=scope)
         used = 0 if key is None else int(counters.get(key, 0.0))
         cost = 0.0 if key is None else float(counters.get(f"{key}:usd", 0.0))
         return LevelUsage(
@@ -842,21 +897,25 @@ class BudgetGovernor:
                 levels.append(usage.projected(estimate))
         return tuple(levels)
 
-    def _status_from(self, counters: Mapping[str, float]) -> BudgetStatus:
-        """Snapshot shape built from raw counters."""
+    def _status_from(
+        self, counters: Mapping[str, float], *, scope: BudgetScope | None = None
+    ) -> BudgetStatus:
+        """Snapshot shape built from raw counters, for ``scope`` (the current one)."""
+        resolved = self._scope if scope is None else scope
         return BudgetStatus(
-            scope=self._scope,
-            levels=tuple(self._level(counters, level) for level in LEVEL_ORDER),
+            scope=resolved,
+            levels=tuple(self._level(counters, level, scope=resolved) for level in LEVEL_ORDER),
         )
 
-    def _key_for(self, level: BudgetLevel) -> str | None:
+    def _key_for(self, level: BudgetLevel, *, scope: BudgetScope | None = None) -> str | None:
         """Counter key for a level, ``None`` for a level that keeps no counter."""
+        resolved = self._scope if scope is None else scope
         if level is BudgetLevel.ACCOUNT_MONTH:
-            return self._scope.account_key
+            return resolved.account_key
         if level is BudgetLevel.RUN:
-            return self._scope.run_key
+            return resolved.run_key
         if level is BudgetLevel.ITERATION:
-            return self._scope.iteration_key
+            return resolved.iteration_key
         return None
 
     def _emit_warnings(self, status: BudgetStatus) -> None:

@@ -35,7 +35,7 @@ from app.governor import (
     TrimStep,
     mandatory_rules,
 )
-from app.providers.base import estimate_tokens
+from app.providers.base import estimate_tokens, prompt_tokens
 from app.skills.loader import SkillLoader
 from tests.factories import SAMPLE_BRIEF, sample_ulid
 
@@ -480,6 +480,55 @@ def test_json_schema_tokens_count_against_the_ceiling(builder: ContextBuilder, s
     assert squeezed.trimmed
     assert squeezed.input_tokens <= squeezed.max_input_tokens
     assert squeezed.schema_tokens == with_schema.schema_tokens
+
+
+def test_input_tokens_match_the_providers_own_count(builder: ContextBuilder, state: FakeRunState):
+    """The builder's ceiling and the governor's precheck must measure the same prompt."""
+    task = make_task()
+
+    plain = builder.plan(task, state)
+    structured = builder.plan(task, state, json_schema={"type": "object"})
+
+    assert plain.input_tokens == prompt_tokens(plain.request) + plain.schema_tokens
+    assert structured.input_tokens == prompt_tokens(structured.request) + structured.schema_tokens
+
+
+def test_a_repeated_source_id_renders_one_card(builder: ContextBuilder, state: FakeRunState):
+    card = make_card()
+    task = make_task(source_ids=[card.id, card.id])
+
+    plan = builder.plan(task, state)
+
+    cards = [
+        block.text for block in plan.semi_stable_blocks if block.text.startswith("## Source cards")
+    ]
+    assert len(cards) == 1
+    assert len(cards[0].splitlines()) == 2  # header + exactly one card line
+
+
+def test_an_oversized_section_is_refused_not_a_contract_error(
+    builder: ContextBuilder, state: FakeRunState
+):
+    """A message longer than LLMMessage allows must raise ContextTooLarge, not pydantic."""
+    huge = "word " * 100_020
+    state_with_huge_text = FakeRunState(
+        brief=state.brief,
+        sections=(make_section(),),
+        sources=(make_card(),),
+        texts={SECTION_ID: huge},
+    )
+
+    with pytest.raises(ContextTooLarge) as caught:
+        builder.plan(make_task(), state_with_huge_text, max_input_tokens=200_000)
+
+    assert caught.value.context["max_message_chars"] == 500_000
+
+
+def test_output_ceiling_is_validated_before_the_request(
+    builder: ContextBuilder, state: FakeRunState
+):
+    with pytest.raises(ValueError, match="max_output_tokens"):
+        builder.plan(make_task(), state, max_output_tokens=100_000)
 
 
 def test_context_too_large_is_refused_rather_than_truncated(
