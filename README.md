@@ -46,9 +46,11 @@ backend/app/
   skills/      lazy SKILL.md loader, deterministic selection, lint CLI
   tools/       deny-by-default scoped tool registry (concrete tools: Step 6)
   api/         FastAPI: health, config, contracts, auth, accounts, agent bindings
-  governor/ planner/ orchestrator/                          # next steps
+  governor/    nested budgets, token estimator, cache-friendly context, telemetry,
+               model tiers
+  planner/ orchestrator/                                    # next steps
 backend/tests/ contracts, config, providers, accounts, memory, article, agents,
-               skills, tools, API, account store, secret scan
+               skills, tools, governor, API, account store, secret scan
 config/        policies.yaml (loop knobs), rubric.yaml (gates, criteria, sections)
 rules/         root.rules.md + agents/<role>.rules.md   (<= 400 tokens each)
 skills/        <name>/SKILL.md prompt skills             (<= 400 tokens each, linted)
@@ -88,5 +90,16 @@ call, validates the `AgentResult`/`Patch` contracts, performs at most one minima
 typed role registry with enable/disable and call-time bindings; a lazy
 `skills/<name>/SKILL.md` loader with deterministic two-skill selection and
 `make skill-lint`; and a deny-by-default, project-scoped tool registry that validates
-arguments, marks results untrusted and caps their size. Next: the governor, the concrete
-tools (Step 6), the five role agents (Step 7), the Planner, and the loop controller.
+arguments, marks results untrusted and caps their size.
+
+Step 5 (governor) complete: `app/governor/` makes spend predictable. Nested budgets
+(`account-month -> run -> iteration -> call`) reserve before a call and settle after it,
+warn at 80 % and refuse at 100 %; `TokenEstimator` uses the provider tokeniser or
+`chars / 4` plus a 15 % margin and reports measured drift; `ContextBuilder` assembles a
+byte-stable cacheable prefix (rules, rubric excerpt, skill index, brief) then
+semi-stable references then the volatile task, trimming in a documented order (digest
+detail, optional skills, source-card notes) and refusing rather than cutting the task;
+`TelemetryRecorder` reports tokens by role and iteration, cache-hit ratio and token ROI;
+`TierResolver` maps policies' tiers to model ids with per-binding override. Next: the
+concrete tools (Step 6), the five role agents (Step 7), the Planner, and the loop
+controller.

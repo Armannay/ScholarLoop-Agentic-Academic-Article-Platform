@@ -107,4 +107,5 @@ markers = [
   "agents: generic agent runtime and registry tests",
   "skills: skill loader, selection and lint tests",
   "tools: scoped tool registry tests",
+  "governor: budgets, estimation, context assembly, telemetry and model tiers",
 ]
