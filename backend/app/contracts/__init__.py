@@ -37,11 +37,17 @@ from app.contracts.enums import (
 )
 from app.contracts.ledger import ChangeEntry, TokenUsage, patch_ref_for
 from app.contracts.llm import LLMMessage, LLMRequest, LLMResponse, SystemBlock
-from app.contracts.loop import LoopDecision
+from app.contracts.loop import STOP_ACTIONS, LoopDecision
 from app.contracts.patch import Patch, PatchOp
-from app.contracts.plan import Plan, PlanConflict
+from app.contracts.plan import REQUIRED_ROLES, Plan, PlanConflict
 from app.contracts.quality import GATE_NAMES, QualityIssue, QualityReport
-from app.contracts.registry import CONTRACT_NAMES, CONTRACTS, get_contract, json_schema_for
+from app.contracts.registry import (
+    CONTRACT_NAMES,
+    CONTRACTS,
+    JSON_SCHEMA_DIALECT,
+    get_contract,
+    json_schema_for,
+)
 from app.contracts.section import CitationRef, SectionState
 from app.contracts.source import SourceCard, normalise_doi
 from app.contracts.task import Task
@@ -51,7 +57,10 @@ __all__ = [
     "CONTRACTS",
     "CONTRACT_NAMES",
     "GATE_NAMES",
+    "JSON_SCHEMA_DIALECT",
+    "REQUIRED_ROLES",
     "SCHEMA_VERSION",
+    "STOP_ACTIONS",
     "Account",
     "AccountProvider",
     "AccountPublic",

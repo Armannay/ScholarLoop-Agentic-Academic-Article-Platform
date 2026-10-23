@@ -1,9 +1,12 @@
 """Plan - the Planner's only output shape. Todo list plus the rules for the run.
 
-``Plan`` is a *document* contract: it validates the whole graph at once (acyclic
-dependencies, resolved ``depends_on``, unique ids, budget sanity) so the
-orchestrator can trust it without re-checking. The Planner never writes article
-text, so nothing here can contain prose destined for a section body.
+``Plan`` is a *document* contract: it validates the whole graph at once (unique
+task ids, self-consistent ``depends_on``, acyclic dependencies, per-task budgets
+within the contract bounds) so the orchestrator can trust it without re-checking.
+Role coverage is a *runtime* precondition rather than a construction rule - a plan
+can legitimately be partial while it is being replanned - and the controller checks
+it with :meth:`Plan.missing_required_roles` before executing anything. The Planner
+never writes article text, so nothing here can contain prose for a section body.
 """
 
 from __future__ import annotations
@@ -93,8 +96,14 @@ class Plan(VersionedContract):
         return distribution
 
     def missing_required_roles(self) -> list[AgentRole]:
-        """Required roles with no task, sorted for stable error messages."""
-        return sorted(REQUIRED_ROLES - set(self.role_distribution()), key=str)
+        """Required roles with no task, sorted for stable error messages.
+
+        ``role_distribution`` lists every role (including zero counts), so the test is
+        on the *count*, not on the key. The controller reads this before executing a
+        plan; a non-empty list means the plan cannot cover the article end to end.
+        """
+        distribution = self.role_distribution()
+        return sorted((role for role in REQUIRED_ROLES if distribution[role] == 0), key=str)
 
     def task_by_id(self, task_id: str) -> Task | None:
         """Look up a task by id, or None."""

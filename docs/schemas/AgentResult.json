@@ -226,7 +226,7 @@
     },
     "PatchOp": {
       "additionalProperties": false,
-      "description": "A single edit. ``old`` is matched literally, so no regex escaping is needed.",
+      "description": "A single edit. ``old`` is matched literally, so no regex escaping is needed.\n\nUnlike every other contract, payload text keeps its whitespace: ``\" \"`` and\n``\"\\n\\n\"`` are meaningful deltas here, not formatting noise. The op's own\nrequired/forbidden-field rules still reject ``None`` and ``\"\"``.",
       "properties": {
         "anchor": {
           "anyOf": [
@@ -655,6 +655,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/AgentResult.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "The complete return value of one agent task execution.",
   "properties": {

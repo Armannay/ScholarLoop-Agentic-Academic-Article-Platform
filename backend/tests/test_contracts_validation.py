@@ -582,3 +582,172 @@ def test_llm_request_requires_at_least_one_message() -> None:
     """There is nothing to answer without a user turn."""
     with pytest.raises(ValidationError):
         LLMRequest.model_validate({"messages": [], "max_output_tokens": 128})
+
+
+# ------------------------------------------------------------------------ Hardening
+# Every rule below closes a hole found in the v1 audit (docs/CONTRACT-AUDIT.md).
+# None of them changes a field, type or required-ness: the exported wire format is
+# identical, the accepted value space is simply the one the docstrings describe.
+
+
+def test_plan_missing_required_roles_counts_tasks_not_keys() -> None:
+    """A role with zero tasks is missing; the old set difference could never see it."""
+    plan = Plan.model_validate(PAYLOADS["Plan"])  # researcher + writer only
+    assert [role.value for role in plan.missing_required_roles()] == ["architect", "validator"]
+    assert plan.missing_required_roles() == sorted(plan.missing_required_roles(), key=str)
+
+
+def test_plan_missing_required_roles_is_empty_once_every_role_has_a_task() -> None:
+    """A plan that covers all five roles reports nothing missing."""
+    from app.contracts.enums import AgentRole
+
+    tasks = [
+        {
+            **{key: value for key, value in PAYLOADS["Task"].items() if key != "depends_on"},
+            "id": sample_ulid(index),
+            "role": role.value,
+            "depends_on": [],
+        }
+        for index, role in enumerate(AgentRole)
+    ]
+    plan = Plan.model_validate({"version": 1, "goal": "Cover every role once.", "tasks": tasks})
+    assert plan.missing_required_roles() == []
+
+
+def test_section_advanced_revalidates_the_new_metrics() -> None:
+    """``model_copy(update=...)`` skips validation; the contract must not."""
+    from app.contracts.enums import SectionStatus
+
+    state = SectionState.model_validate(PAYLOADS["SectionState"])
+    advanced = state.advanced(version=state.version + 1, hash_="sha256:" + "cd" * 32, words=430)
+    assert (advanced.version, advanced.words, advanced.status) == (
+        state.version + 1,
+        430,
+        SectionStatus.DRAFT,
+    )
+    assert advanced.citations == state.citations, "content metrics change, citations do not"
+
+    for version, hash_, words in (
+        (0, "sha256:" + "cd" * 32, 430),  # version 0 means the empty section
+        (state.version + 1, "not-a-hash", 430),
+        (state.version + 1, "sha256:" + "cd" * 32, -1),
+    ):
+        with pytest.raises(ValidationError):
+            state.advanced(version=version, hash_=hash_, words=words)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"op": "insert_after", "anchor": "sentence.", "text": " "},
+        {"op": "replace_text", "old": "a", "new": "b\n\n"},
+        {"op": "delete_text", "old": "  "},
+    ],
+)
+def test_patch_op_preserves_whitespace_exactly(payload: dict[str, str]) -> None:
+    """Literal matching and byte-exact writing both need the payload unmodified."""
+    op = PatchOp.model_validate(payload)
+    for field, value in payload.items():
+        if field != "op":
+            assert getattr(op, field) == value
+
+
+def test_patch_op_still_rejects_an_empty_payload_field() -> None:
+    """Whitespace is content; an empty string is still a missing field."""
+    with pytest.raises(ValidationError) as excinfo:
+        PatchOp.model_validate({"op": "insert_after", "anchor": "sentence.", "text": ""})
+    assert excinfo.value.errors()[0]["loc"] == ("text",)
+
+
+@pytest.mark.parametrize(
+    "reason",
+    ["plateau-detected", "123", "_leading", "trailing_", "double__underscore", "Q_below"],
+)
+def test_loop_decision_reason_must_be_a_snake_case_code(reason: str) -> None:
+    """Hyphens, digits-first, stray underscores and capitals are not reason codes."""
+    with pytest.raises(ValidationError, match="lower_snake_case"):
+        LoopDecision(iter=1, action="CONTINUE", reasons=[reason], evidence={})
+
+
+def test_loop_decision_accepts_snake_case_codes() -> None:
+    """The rule bans prose, not the codes the controller actually emits."""
+    decision = LoopDecision(
+        iter=1,
+        action="CONTINUE",
+        reasons=["q_below_minimum", "budget_80pct", "gate_citations_resolve_both_ways"],
+        evidence={"Q": 61},
+    )
+    assert len(decision.reasons) == 3
+
+
+def test_verdict_continue_below_minimum_still_needs_a_target() -> None:
+    """``meets_minimum=false`` does not make an aimless continue acceptable."""
+    with pytest.raises(ValidationError, match="at least one entry in"):
+        Verdict.model_validate(
+            {
+                "meets_minimum": False,
+                "missing": [],
+                "risks": [],
+                "recommendation": "continue",
+            }
+        )
+
+
+def test_quality_report_rejects_duplicate_issue_ids() -> None:
+    """Issue ids are the ledger's identity for a defect; two rows cannot share one."""
+    issue = PAYLOADS["QualityReport"]["issues"][0]
+    with pytest.raises(ValidationError, match="duplicate issue ids"):
+        QualityReport.model_validate({**PAYLOADS["QualityReport"], "issues": [issue, dict(issue)]})
+
+
+def test_change_entry_cannot_open_and_close_the_same_issue() -> None:
+    """An id in both lists makes open-issue state depend on list order."""
+    with pytest.raises(ValidationError, match="both open and close"):
+        ChangeEntry.model_validate(
+            {
+                **PAYLOADS["ChangeEntry"],
+                "issues_opened": ["ISSUE-cite-001"],
+                "issues_closed": ["ISSUE-cite-001"],
+            }
+        )
+
+
+def test_agent_result_rejects_duplicate_section_states() -> None:
+    """Two states for one section would make the store's choice unexplained."""
+    section = PAYLOADS["AgentResult"]["sections"][0]
+    with pytest.raises(ValidationError, match="duplicate section states"):
+        AgentResult.model_validate(
+            {**PAYLOADS["AgentResult"], "sections": [section, dict(section)]}
+        )
+
+
+@pytest.mark.parametrize("language", ["en", "en-GB", "zh-Hant-TW", "pt-BR", "x-private"])
+def test_brief_accepts_bcp47_language_tags(language: str) -> None:
+    """The shape that is written into every prompt must be a language tag."""
+    assert Brief.model_validate({**SAMPLE_BRIEF, "language": language}).language == language
+
+
+@pytest.mark.parametrize("language", ["hello world", "!!", "en_US", "english language", "e"])
+def test_brief_rejects_non_bcp47_language_tags(language: str) -> None:
+    """A 2..35-character string is not automatically a language."""
+    with pytest.raises(ValidationError):
+        Brief.model_validate({**SAMPLE_BRIEF, "language": language})
+
+
+def test_account_rejects_an_openrouter_style_plaintext_key() -> None:
+    """The plaintext guard must cover every vendor family, not only Anthropic/OpenAI."""
+    raw_key = "sk-" + "or-v1-" + "0" * 32  # assembled so the secret scanner stays quiet
+    with pytest.raises(ValidationError, match="raw API key"):
+        Account.model_validate({**PAYLOADS["Account"], "key_ciphertext": raw_key})
+
+
+def test_llm_response_may_report_an_empty_completion() -> None:
+    """An empty answer is a model outcome the runtime can repair, not a crash."""
+    from app.contracts.llm import LLMResponse
+
+    usage = TokenUsage(**{"in": 3, "out": 0})
+    response = LLMResponse(text="", usage=usage, model="mock", latency_ms=5)
+    assert response.text == ""
+
+    with pytest.raises(ValidationError):
+        LLMResponse(text="text", usage=usage, model="", latency_ms=5)

@@ -102,6 +102,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/Plan.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "A versioned todo list. ``version`` increments on every REPLANNING pass.",
   "properties": {

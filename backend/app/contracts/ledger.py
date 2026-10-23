@@ -6,7 +6,7 @@ into a bounded digest. ``summary`` is capped at 60 words for exactly that reason
 
 from __future__ import annotations
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
 from app.contracts.common import (
     Contract,
@@ -85,6 +85,20 @@ class ChangeEntry(VersionedContract):
     issues_opened: list[IssueId] = Field(default_factory=list, max_length=64)
     issues_closed: list[IssueId] = Field(default_factory=list, max_length=64)
     status: ChangeStatus = ChangeStatus.OK
+
+    @model_validator(mode="after")
+    def _issues_opened_and_closed_are_disjoint(self) -> ChangeEntry:
+        """One entry cannot both open and close the same issue.
+
+        The ledger derives open issues, churn and the reviewer's "reuse the id"
+        rule from these two lists; an id in both makes its state order-dependent.
+        """
+        overlap = set(self.issues_opened) & set(self.issues_closed)
+        if overlap:
+            raise ValueError(
+                f"an entry cannot both open and close the same issue: {sorted(overlap)}"
+            )
+        return self
 
     @property
     def is_success(self) -> bool:

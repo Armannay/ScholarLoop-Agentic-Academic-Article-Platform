@@ -24,6 +24,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/Brief.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "What the user asked for, before any agent has run.\n\n``provided_data`` holds user-supplied data or quotes verbatim: agents may cite\nit, and the validator treats those citations as ``verified`` by construction.\nAn empty ``provided_data`` means the researcher must find real sources or\nreturn ``needs_user_input`` - it never means \"invent one\".",
   "properties": {

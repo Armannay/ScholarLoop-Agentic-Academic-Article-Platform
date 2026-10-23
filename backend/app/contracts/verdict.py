@@ -28,15 +28,13 @@ class Verdict(VersionedContract):
 
     @model_validator(mode="after")
     def _recommendation_matches_minimum(self) -> Verdict:
-        needs_target = (
-            self.meets_minimum
-            and self.recommendation is Recommendation.CONTINUE
-            and not self.missing
-        )
-        if needs_target:
+        # "Continue" is only actionable when it names what is still missing. The rule
+        # holds below the minimum too: meets_minimum=false plus continue plus no
+        # target is the same infinite loop with extra steps.
+        if self.recommendation is Recommendation.CONTINUE and not self.missing:
             raise ValueError(
-                "recommendation=continue with meets_minimum=true needs at least one entry in "
-                "missing; otherwise the loop would iterate without a target"
+                "recommendation=continue needs at least one entry in missing; "
+                "otherwise the loop would iterate without a target"
             )
         if not self.meets_minimum and self.recommendation is Recommendation.FINISH:
             raise ValueError(

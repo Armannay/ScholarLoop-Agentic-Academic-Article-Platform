@@ -140,7 +140,11 @@ class LoopAction(StrEnum):
 
 
 class AccountProvider(StrEnum):
-    """Account.provider. Only ``mock`` is implemented in this step."""
+    """Account.provider: the adapter family that serves the credential.
+
+    ``mock`` is the test/CI provider; ``anthropic`` and ``openai_compatible`` have
+    live adapters in ``app/providers``.
+    """
 
     ANTHROPIC = "anthropic"
     OPENAI_COMPATIBLE = "openai_compatible"

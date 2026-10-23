@@ -6,6 +6,7 @@ be counted and charted) and ``evidence`` carries the numbers behind the decision
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from pydantic import Field, model_validator
@@ -13,7 +14,7 @@ from pydantic import Field, model_validator
 from app.contracts.common import VersionedContract
 from app.contracts.enums import LoopAction
 
-__all__ = ["STOP_ACTIONS", "LoopDecision"]
+__all__ = ["MAX_REASON_LENGTH", "REASON_CODE_PATTERN", "STOP_ACTIONS", "LoopDecision"]
 
 #: Actions that end the loop. Everything else means "run another iteration".
 STOP_ACTIONS: frozenset[LoopAction] = frozenset(
@@ -24,6 +25,11 @@ STOP_ACTIONS: frozenset[LoopAction] = frozenset(
         LoopAction.STOP_USER,
     }
 )
+
+#: A reason code: ``plateau_detected``, ``q_below_minimum``, ``budget_80pct``.
+#: Hyphens, spaces, leading digits and the empty string are not codes.
+REASON_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
+MAX_REASON_LENGTH = 64
 
 
 class LoopDecision(VersionedContract):
@@ -44,8 +50,12 @@ class LoopDecision(VersionedContract):
     @model_validator(mode="after")
     def _reasons_are_codes(self) -> LoopDecision:
         for reason in self.reasons:
-            if reason != reason.strip() or " " in reason or reason != reason.lower():
-                raise ValueError(f"reason {reason!r} must be a lower_snake_case code, not prose")
+            if len(reason) > MAX_REASON_LENGTH or not REASON_CODE_PATTERN.match(reason):
+                raise ValueError(
+                    f"reason {reason!r} must be a lower_snake_case code "
+                    f"(a-z, digits, single underscores; at most {MAX_REASON_LENGTH} chars), "
+                    "never prose"
+                )
         return self
 
     @property

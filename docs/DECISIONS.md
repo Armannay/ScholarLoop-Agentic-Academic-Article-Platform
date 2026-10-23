@@ -62,3 +62,21 @@ Never edit a merged ADR: supersede it with a new one and link both ways.
 - **Decision:** One Pydantic v2 module per contract in `backend/app/contracts/`, `extra="forbid"`, `schema_version: Literal[1]` on documents, string ULIDs, UTC timestamps. `make schemas` exports JSON Schemas to `docs/schemas/`, and CI fails if the committed schemas drift from the models. Contract tests assert round-trip losslessness, unknown-field rejection and the registry's completeness.
 - **Alternatives:** JSON Schema as the source of truth (rejected: loses Python typing, so `mypy --strict` cannot help); protobuf/OpenAPI-first (rejected: heavy for a four-person build, and prompts want plain JSON Schema).
 - **Consequences:** one definition serves runtime validation, IDE autocompletion, documentation and the schemas handed to models. Cost: contract changes must be deliberate — a field rename is a breaking change that requires a CONTRACT-CHANGE-REQUEST and a re-export.
+
+## ADR-0006 — Cross-field contract rules live in model validators, not in the exported schema
+
+- **Status:** accepted
+- **Date:** 2026-10-23
+- **Context:** The v1 audit (docs/CONTRACT-AUDIT.md) found payloads that passed JSON-Schema validation but contradicted the contract's own docstrings: duplicate issue ids, an entry both opening and closing an issue, a `continue` verdict with no target, a language field that is not a language. Expressing these in JSON Schema would mean sprawling `allOf`/`if-then` documents; leaving them to consumers would mean re-implementing them in every consumer.
+- **Decision:** Field shapes, enums and numeric bounds stay in the schema; rules that span fields or need a regex over a semantic format live in Pydantic model/field validators. Every such rule gets a test in `backend/tests/test_contracts_validation.py`, and `docs/schemas/README.md` points at the audit so a schema-only reader knows where the rest of the contract lives. `json_schema_for` now declares `$schema` = draft 2020-12 instead of leaving the dialect implicit.
+- **Alternatives:** encode every rule in JSON Schema (rejected: unreadable, duplicated logic, and Pydantic would be the source anyway); validate only at the API boundary (rejected: the ledger, the article store and provider adapters construct contracts too); relax the docstrings to match the loose validation (rejected: it would weaken the invariants the orchestrator is built on).
+- **Consequences:** the wire format stays stable while the accepted value space matches what the models promise, and repair messages name the offending field. Cost: the exported schema is necessary but not sufficient, so the docs and the test-suite are load-bearing and must be updated with any new rule.
+
+## ADR-0007 — Patch payloads are byte-exact
+
+- **Status:** accepted
+- **Date:** 2026-10-23
+- **Context:** Every contract strips surrounding whitespace (`Contract.str_strip_whitespace`) because padding is noise in titles, summaries and prompts. `PatchOp` inherited that rule, but the applier matches `old`/`anchor` literally and writes `new`/`text` verbatim. The result was a silent corruption path (`new="b\n\n"` became `"b"`) and an inexpressible operation (inserting a space or a paragraph break), documented in a test as a known limitation awaiting a change request.
+- **Decision:** `PatchOp` is the one contract that opts out of whitespace stripping. A patch payload is content: `" "`, `"\n\n"` and whitespace-only `old` values are valid, while `None` and `""` still mean "field missing". The applier stays literal — no normalisation, no collapsing, no retry with a trimmed needle.
+- **Alternatives:** keep stripping and require agents to anchor before the gap (rejected: cannot express paragraph breaks, and the failure is silent); normalise the stored section body before matching (rejected: rewrites the artifact and invalidates every hash); add a whitespace-collapsing fallback to the applier (rejected: it already exists *only* to produce a repair hint, never to apply an untrusted match).
+- **Consequences:** an agent can express any edit the applier can perform, and what it sends is exactly what lands in the article, which is what HARD RULE 3 and the hash-based versioning assume. Cost: `PatchOp` is a documented exception to a package-wide rule, so future contract changes must decide explicitly whether they are content or prose.

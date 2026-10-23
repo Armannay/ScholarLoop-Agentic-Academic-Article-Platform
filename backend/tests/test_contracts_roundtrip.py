@@ -17,7 +17,13 @@ from pydantic import BaseModel, ValidationError
 
 from app import CONTRACT_VERSION
 from app.contracts.common import SCHEMA_VERSION, VersionedContract
-from app.contracts.registry import CONTRACT_NAMES, CONTRACTS, get_contract, json_schema_for
+from app.contracts.registry import (
+    CONTRACT_NAMES,
+    CONTRACTS,
+    JSON_SCHEMA_DIALECT,
+    get_contract,
+    json_schema_for,
+)
 from tests.factories import sample_payloads
 
 pytestmark = pytest.mark.contracts
@@ -109,3 +115,20 @@ def test_registry_names_are_stable() -> None:
     """The registry exposes all 23 names; renames are a contract change."""
     assert len(CONTRACTS) == 23
     assert CONTRACT_NAMES[:3] == ("Brief", "Task", "Plan")
+
+
+@pytest.mark.parametrize("name", CONTRACT_NAMES)
+def test_exported_schema_declares_its_dialect(name: str) -> None:
+    """A consumer must not have to guess the draft from the shape of the document."""
+    assert json_schema_for(name)["$schema"] == JSON_SCHEMA_DIALECT
+
+
+def test_package_exports_every_registered_contract() -> None:
+    """``app.contracts`` is the import surface; a registry entry missing from it is a trap."""
+    import app.contracts as package
+
+    missing = [name for name in CONTRACT_NAMES if not hasattr(package, name)]
+    assert missing == [], f"app.contracts does not export: {missing}"
+    assert set(CONTRACT_NAMES) <= set(package.__all__)
+    # The rule constants the orchestrator needs are exported alongside the models.
+    assert {"REQUIRED_ROLES", "STOP_ACTIONS", "GATE_NAMES"} <= set(package.__all__)

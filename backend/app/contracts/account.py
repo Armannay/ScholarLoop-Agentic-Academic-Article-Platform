@@ -15,9 +15,20 @@ from pydantic import Field, field_validator, model_validator
 from app.contracts.common import Contract, NonEmptyStr, Ulid, VersionedContract
 from app.contracts.enums import AccountProvider, AccountStatus
 
-__all__ = ["KEY_FINGERPRINT_LENGTH", "Account", "AccountPublic", "MonthlyBudget", "key_fingerprint"]
+__all__ = [
+    "KEY_FINGERPRINT_LENGTH",
+    "RAW_KEY_PREFIXES",
+    "Account",
+    "AccountPublic",
+    "MonthlyBudget",
+    "key_fingerprint",
+]
 
 KEY_FINGERPRINT_LENGTH = 12
+
+#: Vendor prefixes of raw provider keys. ``SK-`` covers Anthropic, OpenAI and
+#: OpenRouter; the rest are the other families a user is likely to paste in.
+RAW_KEY_PREFIXES: tuple[str, ...] = ("SK-", "GSK_", "XAI-", "AIZA", "AKIA", "ASIA")
 
 
 def key_fingerprint(ciphertext: str) -> str:
@@ -77,10 +88,12 @@ class Account(VersionedContract):
         """Reject the obvious mistake of storing a raw provider key.
 
         A defence-in-depth check, not a substitute for the encryptor: it catches the
-        copy-paste error where someone skips the account store entirely.
+        copy-paste error where someone skips the account store entirely. The real
+        enveloped blob always starts ``v1:`` (see ``app.accounts.crypto``), so every
+        prefix in ``RAW_KEY_PREFIXES`` is safe to reject outright.
         """
         upper = value.upper()
-        for prefix in ("SK-ANT", "SK-ANTHROPIC", "SK-PROJ", "SK-OPENAI", "AKIA"):
+        for prefix in RAW_KEY_PREFIXES:
             if upper.startswith(prefix):
                 raise ValueError(
                     "key_ciphertext looks like a raw API key; encrypt it via the account store"

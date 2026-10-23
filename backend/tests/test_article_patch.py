@@ -132,9 +132,9 @@ def test_apply_matrix(text: str, ops: list[PatchOp], expected: str) -> None:
 def test_insert_after_splices_immediately_after_the_anchor() -> None:
     """Insertion is a raw splice: no space, no newline the op did not ask for.
 
-    ``PatchOp`` strips surrounding whitespace from its fields (``str_strip_whitespace``
-    in the contract base), so an op cannot express a leading space. Agents anchor on
-    the token *before* the gap instead; see the CONTRACT-CHANGE-REQUEST in HANDOFF.
+    ``PatchOp`` opts out of the contract base's ``str_strip_whitespace``, so payload
+    text is byte-exact: an op can express a leading space, a paragraph break or a
+    whitespace-only insertion, and the applier writes exactly those bytes.
     """
     outcome = apply_ops(
         "Alpha beta",
@@ -142,7 +142,14 @@ def test_insert_after_splices_immediately_after_the_anchor() -> None:
         status=SectionStatus.EMPTY,
     )
     assert outcome.text == "Alphagamma beta"
-    assert PatchOp(op=PatchOpType.INSERT_AFTER, anchor="a", text="  b  ").text == "b"
+    assert PatchOp(op=PatchOpType.INSERT_AFTER, anchor="a", text="  b  ").text == "  b  "
+
+    spaced = apply_ops(
+        "Alpha beta",
+        make_patch(insert_after("Alpha", " gamma"), base_version=0),
+        status=SectionStatus.EMPTY,
+    )
+    assert spaced.text == "Alpha gamma beta"
 
 
 def test_apply_reports_the_numbers_the_ledger_quotes() -> None:

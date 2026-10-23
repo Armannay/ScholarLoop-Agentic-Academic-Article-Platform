@@ -57,6 +57,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/QualityReport.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Gates, weighted scores and the resulting Q for one iteration.",
   "properties": {

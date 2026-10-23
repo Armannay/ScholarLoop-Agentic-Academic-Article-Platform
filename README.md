@@ -12,6 +12,8 @@ Start here:
 * [docs/DECISIONS.md](docs/DECISIONS.md) — ADR template and the first five decisions.
 * [docs/schemas/](docs/schemas/) — generated JSON Schema for every CONTRACTS v1 model.
 * [rules/root.rules.md](rules/root.rules.md) — the hard rules every agent obeys.
+* [docs/CONTRACT-AUDIT.md](docs/CONTRACT-AUDIT.md) — the v1 contract audit: what was
+  hardened, what is deliberately unchanged, and the open CONTRACT-CHANGE-REQUESTs.
 * [.env.example](.env.example) — every environment variable, placeholders only.
 
 ## Quick start
@@ -103,3 +105,13 @@ detail, optional skills, source-card notes) and refusing rather than cutting the
 `TierResolver` maps policies' tiers to model ids with per-binding override. Next: the
 concrete tools (Step 6), the five role agents (Step 7), the Planner, and the loop
 controller.
+
+Contracts audit complete (v1 hardened in place): patch payloads are byte-exact so the
+literal applier can express spaces and paragraph breaks; `SectionState.advanced()`
+re-validates instead of copying around the invariants; `Plan.missing_required_roles()` now
+counts tasks instead of set keys; reason codes are strict `lower_snake_case`; `Brief`
+language must be a BCP-47 tag; issue ids are unique per report and an entry cannot both
+open and close one; an empty completion is reportable rather than a crash; the plaintext
+key guard covers every vendor family; and exported schemas declare their dialect. No
+field, type or required-ness changed — findings and open requests are in
+[docs/CONTRACT-AUDIT.md](docs/CONTRACT-AUDIT.md).

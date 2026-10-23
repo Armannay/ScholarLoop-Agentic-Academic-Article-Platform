@@ -33,6 +33,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/LLMResponse.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "One provider answer, with usage so the governor can bill it.",
   "properties": {
@@ -57,7 +58,6 @@
     },
     "text": {
       "description": "Raw model text; structured replies are still JSON *text*.",
-      "minLength": 1,
       "title": "Text",
       "type": "string"
     },

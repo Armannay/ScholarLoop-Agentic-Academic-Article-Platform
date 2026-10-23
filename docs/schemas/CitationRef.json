@@ -1,5 +1,6 @@
 {
   "$id": "https://scholarloop.local/schemas/v1/CitationRef.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "A citation site in a section.\n\n``key`` is the rendered marker (``(Smith, 2020)`` for APA7, ``[1]`` for IEEE).\n``source_id`` is None only for a marker that has no card yet - exactly the\ncondition the both-ways citation gate reports as a high-severity issue.",
   "properties": {

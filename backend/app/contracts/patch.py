@@ -3,11 +3,16 @@
 Every op carries only the delta (HARD RULE 3). ``base_version`` is the section
 version the agent built against; the applier rejects the patch if the section has
 moved on, which is what keeps three parallel writers from clobbering each other.
+
+Patch payloads are **byte-exact**. The applier matches ``old``/``anchor`` literally
+and writes ``new``/``text`` verbatim, so the contract must not normalise them: a
+paragraph break is ``"\\n\\n"``, a sentence separator can be ``" "``, and stripping
+either would silently change the article (or make a legitimate op unmatchable).
 """
 
 from __future__ import annotations
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from app.contracts.common import Contract, NonEmptyStr, SectionId, Ulid, VersionedContract
 from app.contracts.enums import PatchOpType
@@ -30,7 +35,18 @@ FORBIDDEN_FIELDS: dict[PatchOpType, tuple[str, ...]] = {
 
 
 class PatchOp(Contract):
-    """A single edit. ``old`` is matched literally, so no regex escaping is needed."""
+    """A single edit. ``old`` is matched literally, so no regex escaping is needed.
+
+    Unlike every other contract, payload text keeps its whitespace: ``" "`` and
+    ``"\\n\\n"`` are meaningful deltas here, not formatting noise. The op's own
+    required/forbidden-field rules still reject ``None`` and ``""``.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
+        str_strip_whitespace=False,
+    )
 
     op: PatchOpType
     anchor: NonEmptyStr | None = Field(

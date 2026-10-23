@@ -1,5 +1,6 @@
 {
   "$id": "https://scholarloop.local/schemas/v1/SystemBlock.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "A system prompt block. Split into blocks so the stable prefix can be cached.",
   "properties": {

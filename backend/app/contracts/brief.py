@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+import re
 from typing import Annotated
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.contracts.common import NonEmptyStr, VersionedContract, word_count
 from app.contracts.enums import ArticleType, CitationStyle
 
-__all__ = ["MAX_TARGET_WORDS", "MIN_TARGET_WORDS", "Brief"]
+__all__ = ["LANGUAGE_TAG_PATTERN", "MAX_TARGET_WORDS", "MIN_TARGET_WORDS", "Brief"]
 
 MIN_TARGET_WORDS = 300
 MAX_TARGET_WORDS = 30_000
+
+#: BCP-47 shape: a 2-3 letter primary subtag (or ``x`` private use) followed by
+#: 1-8 character alphanumeric subtags. Deliberately shape-only - the registry of
+#: valid tags is not something a contract should embed.
+LANGUAGE_TAG_PATTERN = re.compile(
+    r"^(?:[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*|x(?:-[A-Za-z0-9]{1,8})+)$"
+)
 
 
 class Brief(VersionedContract):
@@ -42,6 +50,22 @@ class Brief(VersionedContract):
         default_factory=list,
         description="Verbatim user data/quotes. Empty is allowed; fabricated sources are not.",
     )
+
+    @field_validator("language")
+    @classmethod
+    def _language_is_a_tag(cls, value: str) -> str:
+        """``Brief.language`` is written into every prompt, so it must be a real tag.
+
+        The field is only length-bounded in the JSON Schema (patterns cannot express
+        the full registry); the shape rule lives here so ``"hello world"`` or ``"!!"``
+        cannot silently become the article's language.
+        """
+        if not LANGUAGE_TAG_PATTERN.match(value):
+            raise ValueError(
+                f"language must be a BCP-47 tag such as 'en', 'en-GB' or 'zh-Hant-TW', "
+                f"got {value!r}"
+            )
+        return value
 
     @model_validator(mode="after")
     def _no_contradictory_constraints(self) -> Brief:

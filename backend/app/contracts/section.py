@@ -96,12 +96,15 @@ class SectionState(VersionedContract):
 
         Used by the article store when a patch is applied: any content change means
         the previous ``reviewed``/``final`` verdict no longer describes the text.
+
+        The copy is re-validated. ``model_copy(update=...)`` deliberately skips
+        validation, which would let ``version=0`` (empty), a malformed hash or a
+        negative word count enter the store and break every later invariant check.
         """
-        return self.model_copy(
-            update={
-                "version": version,
-                "hash": hash_,
-                "words": words,
-                "status": SectionStatus.DRAFT,
-            }
-        )
+        updates = {
+            "version": version,
+            "hash": hash_,
+            "words": words,
+            "status": SectionStatus.DRAFT,
+        }
+        return SectionState.model_validate({**self.model_dump(), **updates})

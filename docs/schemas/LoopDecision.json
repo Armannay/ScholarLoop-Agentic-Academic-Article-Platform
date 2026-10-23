@@ -16,6 +16,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/LoopDecision.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "One decision by the controller: what to do next, and why.",
   "properties": {

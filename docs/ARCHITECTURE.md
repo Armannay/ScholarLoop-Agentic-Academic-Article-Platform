@@ -33,6 +33,16 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 `skills`, `tools`, `scripts` and `api` exist today; `planner` and `orchestrator` remain
 the interfaces this foundation was built to accept.
 
+### Contracts (implemented)
+
+`app/contracts/` is the wire format and the bottom of the dependency graph. Every model
+is `extra="forbid"`, documents carry `schema_version = 1`, and `docs/schemas/` is
+generated and drift-checked. Two rules keep it honest: `PatchOp` keeps payloads
+byte-exact because the applier matches literally (ADR-0007), and cross-field rules
+(disjoint ids, a `continue` verdict with a target, BCP-47 language, snake_case reason
+codes, re-validated `SectionState.advanced()`) live in validators rather than in the
+schema (ADR-0006). Findings and open change requests: `docs/CONTRACT-AUDIT.md`.
+
 ### Article store (implemented)
 
 `app/article/` holds the article itself: every section is an independently versioned
@@ -116,7 +126,7 @@ INTAKE ──► PLANNING ──► EXECUTING ──► VALIDATING ──► DEC
 ```
 
 * **INTAKE** — validate the `Brief`; resolve accounts, bindings and the rubric.
-* **PLANNING** — the Planner returns a `Plan` (todo list + rules, every task owned by exactly one role). Validated for acyclic dependencies and role coverage.
+* **PLANNING** — the Planner returns a `Plan` (todo list + rules, every task owned by exactly one role). The contract validates the graph; the controller checks role coverage (`missing_required_roles()`) before executing.
 * **EXECUTING** — up to `max_parallel` ready tasks run; each returns patches + a `ChangeEntry`.
 * **VALIDATING** — the validator measures the article and emits a `QualityReport` (8 hard gates, weighted criteria, `Q`).
 * **DECIDING** — the loop controller combines the report, the verdict, the budget and the erosion detectors into a `LoopDecision`.

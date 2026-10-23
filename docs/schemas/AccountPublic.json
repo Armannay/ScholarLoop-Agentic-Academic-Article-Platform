@@ -1,7 +1,7 @@
 {
   "$defs": {
     "AccountProvider": {
-      "description": "Account.provider. Only ``mock`` is implemented in this step.",
+      "description": "Account.provider: the adapter family that serves the credential.\n\n``mock`` is the test/CI provider; ``anthropic`` and ``openai_compatible`` have\nlive adapters in ``app/providers``.",
       "enum": [
         "anthropic",
         "openai_compatible",
@@ -58,6 +58,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/AccountPublic.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "An account with the key replaced by a short, non-reversible fingerprint.",
   "properties": {

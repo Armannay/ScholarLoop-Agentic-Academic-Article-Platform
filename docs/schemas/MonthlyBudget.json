@@ -1,5 +1,6 @@
 {
   "$id": "https://scholarloop.local/schemas/v1/MonthlyBudget.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Optional spend ceiling per account. ``None`` means \"inherit the run budget\".",
   "properties": {

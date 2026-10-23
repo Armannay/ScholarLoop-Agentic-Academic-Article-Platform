@@ -26,6 +26,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/AgentBinding.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Per-role provider configuration.",
   "properties": {

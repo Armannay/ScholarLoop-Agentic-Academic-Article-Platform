@@ -12,6 +12,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/SourceCard.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "One reference, with enough metadata to verify it and too little room to pad.\n\n``snippet`` is the only free-text field. ``url`` must be an absolute http(s)\nURL, and ``doi`` is normalised on validation so deduplication is reliable.",
   "properties": {

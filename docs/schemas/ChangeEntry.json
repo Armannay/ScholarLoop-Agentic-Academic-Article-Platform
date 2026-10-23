@@ -56,6 +56,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/ChangeEntry.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "One agent action, as recorded in the append-only ledger.",
   "properties": {

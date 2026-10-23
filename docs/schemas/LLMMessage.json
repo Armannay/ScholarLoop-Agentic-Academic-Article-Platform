@@ -11,6 +11,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/LLMMessage.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "One conversational turn. System text never appears here.",
   "properties": {

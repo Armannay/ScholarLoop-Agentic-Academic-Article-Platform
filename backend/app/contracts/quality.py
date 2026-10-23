@@ -66,6 +66,13 @@ class QualityReport(VersionedContract):
         unknown = sorted(set(self.gates) - set(GATE_NAMES))
         if unknown:
             raise ValueError(f"unknown gate names (see config/rubric.yaml): {unknown}")
+
+        # Issue ids are the ledger's identity for a defect: the loop counts opens,
+        # closes and churn by id, so two rows sharing one id cannot be told apart.
+        issue_ids = [issue.id for issue in self.issues]
+        duplicates = sorted({issue_id for issue_id in issue_ids if issue_ids.count(issue_id) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate issue ids in one report: {duplicates}")
         return self
 
     @property

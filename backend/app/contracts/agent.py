@@ -2,8 +2,9 @@
 
 An agent never returns prose to the orchestrator. It returns an ``entry`` (for the
 ledger), zero or more ``patches`` (for the article store), ``source_cards`` (for the
-source store), rewritten ``sections`` state (reviewer/validator may only set status
-and issues) and optionally a ``QualityReport`` (validator only).
+source store), updated ``sections`` state and optionally a ``QualityReport``
+(validator only). The reviewer may patch the sections it reviews; the validator may
+score the article and move a SourceCard's ``verification``.
 """
 
 from __future__ import annotations
@@ -61,7 +62,14 @@ class AgentResult(VersionedContract):
         if len(source_ids) != len(self.source_cards):
             raise ValueError("duplicate source card ids in one result")
 
-        _ = AgentRole  # re-exported type guard: entry.role is always one of the five roles
+        # Two states for one section in one result is ambiguous: the store would
+        # apply whichever it saw last, and the ledger could not explain which.
+        section_ids = [section.id for section in self.sections]
+        duplicate_sections = sorted(
+            {section_id for section_id in section_ids if section_ids.count(section_id) > 1}
+        )
+        if duplicate_sections:
+            raise ValueError(f"duplicate section states in one result: {duplicate_sections}")
         return self
 
     @property

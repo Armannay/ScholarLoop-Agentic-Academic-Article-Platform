@@ -44,6 +44,7 @@
     }
   },
   "$id": "https://scholarloop.local/schemas/v1/SectionState.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Versioned state of one section. ``order`` is the only ordering authority.",
   "properties": {

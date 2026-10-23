@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from app.contracts.common import Contract, NonEmptyStr, VersionedContract
 from app.contracts.enums import MessageRole
@@ -65,6 +65,13 @@ class LLMRequest(VersionedContract):
 
 class LLMResponse(VersionedContract):
     """One provider answer, with usage so the governor can bill it."""
+
+    # An empty completion is a *model* outcome (content filtering, a stop at
+    # max_tokens), not a transport failure: providers must be able to report it so
+    # the agent runtime treats it as an invalid answer and earns one repair. The
+    # inherited ``str_min_length`` would instead raise ValidationError inside the
+    # adapter, where nothing catches it. ``model`` keeps its explicit min_length.
+    model_config = ConfigDict(str_min_length=0)
 
     text: str = Field(description="Raw model text; structured replies are still JSON *text*.")
     usage: TokenUsage
