@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Final, Literal
+from typing import Annotated, Final, Literal
 
-from pydantic import Field, ValidationError, model_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
 
 from app.contracts.common import (
     Contract,
@@ -37,6 +37,7 @@ __all__ = [
     "Gate",
     "Rubric",
     "SectionSpec",
+    "TextCheckRules",
     "load_rubric",
     "resolve_sections",
     "slugify",
@@ -44,6 +45,13 @@ __all__ = [
 
 WEIGHT_TOTAL: Final = 100.0
 WEIGHT_TOLERANCE: Final = 0.01
+DEFAULT_PLACEHOLDER_PATTERNS: Final[tuple[str, ...]] = (
+    r"(?i)\bTODO\b",
+    r"(?i)\bTBD\b",
+    r"(?i)\blorem\s+ipsum\b",
+    r"(?i)\bXXX\b",
+    r"(?i)\[(?:insert|add|write)\s+[^\]]{1,100}\]",
+)
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 
@@ -104,6 +112,25 @@ class AbstractSpec(Contract):
         return self
 
 
+class TextCheckRules(Contract):
+    """Configurable patterns used by the deterministic no-placeholders gate."""
+
+    placeholder_patterns: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
+        default_factory=lambda: list(DEFAULT_PLACEHOLDER_PATTERNS),
+        max_length=32,
+    )
+
+    @field_validator("placeholder_patterns")
+    @classmethod
+    def _patterns_compile(cls, patterns: list[str]) -> list[str]:
+        for pattern in patterns:
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ValueError(f"invalid placeholder pattern {pattern!r}: {exc}") from exc
+        return patterns
+
+
 class ArticleTypeSpec(Contract):
     """Required sections and abstract range for one article type."""
 
@@ -151,6 +178,7 @@ class Rubric(VersionedContract):
     article_types: dict[ArticleType, ArticleTypeSpec]
     gates: NonEmptyList[Gate]
     criteria: NonEmptyList[Criterion]
+    text_checks: TextCheckRules = Field(default_factory=TextCheckRules)
 
     @model_validator(mode="after")
     def _every_article_type_present(self) -> Rubric:
