@@ -8,6 +8,15 @@
 # validator; the total-words gate is measured against Brief.target_words (+-15%).
 schema_version: 1
 
+# Regexes applied by the deterministic text-check tool's no_placeholders gate.
+text_checks:
+  placeholder_patterns:
+    - '(?i)\bTODO\b'
+    - '(?i)\bTBD\b'
+    - '(?i)\blorem\s+ipsum\b'
+    - '(?i)\bXXX\b'
+    - '(?i)\[(?:insert|add|write)\s+[^\]]{1,100}\]'
+
 article_types:
   research:
     abstract: {required: true, min_words: 150, max_words: 300}

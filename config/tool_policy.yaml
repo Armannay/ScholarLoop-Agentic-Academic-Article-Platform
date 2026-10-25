@@ -1,0 +1,12 @@
+# Root role grants for the deterministic Step 6 research and validation tools.
+# Project scopes may only narrow these permissions through ToolRegistry.
+roles:
+  researcher:
+    - scholar_search
+    - sanitize_text
+  validator:
+    - doi_verify
+    - citation_check
+    - text_checks
+    - sanitize_text
+projects: {}
