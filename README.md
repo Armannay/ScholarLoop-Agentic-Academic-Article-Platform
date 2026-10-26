@@ -48,7 +48,9 @@ backend/app/
   api/         FastAPI: health, config, contracts, auth, accounts, agent bindings
   governor/    nested budgets, token estimator, cache-friendly context, telemetry,
                model tiers
-  planner/ orchestrator/                                    # next steps
+  planner/     plan/delta/evaluate (never writes article text)
+  orchestrator/ deterministic loop: intake, state machine, scheduler,
+               loop controller, checkpoints, run persistence (Step 9)
 backend/tests/ contracts, config, providers, accounts, memory, article, agents,
                skills, tools, governor, API, account store, secret scan
 config/        policies.yaml (loop knobs), rubric.yaml (gates, criteria, sections)

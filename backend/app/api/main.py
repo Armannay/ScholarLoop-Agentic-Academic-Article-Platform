@@ -38,6 +38,7 @@ from app.api.routers import agents as agents_router
 from app.api.routers import auth as auth_router
 from app.api.routers import config as config_router
 from app.api.routers import health as health_router
+from app.api.routers import runs as runs_router
 from app.core.errors import ConfigError, ScholarLoopError
 from app.core.ids import new_ulid
 from app.core.logging import configure_logging, get_logger
@@ -122,6 +123,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.accounts_configured = int(
             session.scalar(select(func.count()).select_from(AccountRow)) or 0
         )
+    # Orchestrator (Step 9): run records persist to disk (crash resume);
+    # per-owner RunManagers are built lazily by the runs router.
+    from app.orchestrator.persistence import FileRunStore
+
+    app.state.run_store = FileRunStore(settings.runs_path)
+    app.state.run_managers = {}
     logger.info("account store ready", extra={"accounts": app.state.accounts_configured})
     try:
         yield
@@ -139,8 +146,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=__version__,
         description=(
             "Agentic academic article platform: a deterministic orchestrator drives a "
-            "planning-only LLM and five executing agents. This build exposes health, "
-            "configuration and contract schemas; the run endpoints arrive in later steps."
+            "planning-only LLM and five executing agents. Exposes health, configuration, "
+            "contract schemas, accounts/bindings, and the run API (Step 9)."
         ),
         lifespan=lifespan,
         docs_url="/docs",
@@ -219,6 +226,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router.router)
     app.include_router(accounts_router.router)
     app.include_router(agents_router.router)
+    app.include_router(runs_router.router)
 
     @app.get("/", include_in_schema=False)
     def root() -> dict[str, str]:

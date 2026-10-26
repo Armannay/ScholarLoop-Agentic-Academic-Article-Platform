@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     skills_dir: Path = Path("skills")
     project_overrides_path: Path | None = None
 
+    #: Where run records live (one JSON per run, atomic writes). Crash-resume
+    #: reads them back; delete the directory to forget all runs.
+    runs_dir: Path = Path(".scholarloop/runs")
+
     # 0.0.0.0 is deliberate: the API must be reachable from inside a container and
     # from the sandbox preview proxy. Bind loopback explicitly in production.
     api_host: str = "0.0.0.0"  # noqa: S104
@@ -121,6 +125,11 @@ class Settings(BaseSettings):
     def rules_path(self) -> Path:
         """Absolute path to rules/."""
         return self.resolve(self.rules_dir)
+
+    @property
+    def runs_path(self) -> Path:
+        """Absolute path to the run-record directory."""
+        return self.resolve(self.runs_dir)
 
     @property
     def skills_path(self) -> Path:
