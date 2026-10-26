@@ -1,4 +1,5 @@
 """Strict role-specific payload schemas; AgentResult remains the runtime envelope."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -56,6 +57,6 @@ class ValidatorOutput(Contract):
 
 class WriterOutput(Contract):
     section_id: SectionId
-    patch: dict
+    patch: dict[str, object]
     status: Literal["ok", "needs_user_input"]
     missing_inputs: list[NonEmptyStr] = Field(default_factory=list, max_length=8)

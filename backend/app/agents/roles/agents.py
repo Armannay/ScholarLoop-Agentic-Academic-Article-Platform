@@ -4,6 +4,7 @@ The envelope schema is enforced by Agent; these output schemas are also availabl
 orchestrator/UI consumers for finer role-specific validation. The call-time binding
 controls the concrete model; tiers below are defaults, not hard-coded model IDs.
 """
+
 from __future__ import annotations
 
 from typing import ClassVar
@@ -14,6 +15,9 @@ from app.contracts.enums import AgentRole, BindingRole, ModelTier
 
 class RoleAgent(Agent):
     """Shared metadata for concrete roles; execution stays in the generic runtime."""
+
+    # Agent validates roles when subclasses are created; concrete classes override this.
+    role = AgentRole.WRITER
     allowed_tools: ClassVar[tuple[str, ...]] = ()
     default_tier: ClassVar[ModelTier]
     max_input_tokens: ClassVar[int] = 16_000
@@ -64,7 +68,11 @@ class ValidatorAgent(RoleAgent):
 ROLE_BINDINGS: dict[AgentRole, BindingRole] = {role: BindingRole(role.value) for role in AgentRole}
 
 from app.agents.roles.schemas import (  # noqa: E402
-    ArchitectOutput, ResearcherOutput, ReviewerOutput, ValidatorOutput, WriterOutput,
+    ArchitectOutput,
+    ResearcherOutput,
+    ReviewerOutput,
+    ValidatorOutput,
+    WriterOutput,
 )
 
 ArchitectAgent.output_model = ArchitectOutput
