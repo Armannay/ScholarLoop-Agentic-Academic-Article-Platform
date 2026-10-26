@@ -1,0 +1,1 @@
+{"input":{"role":"validator","tool_gates":{"no_placeholders":true}},"expected":{"subjective_checks":{"coherence":true},"rationale":["Deterministic check passed"]}}
