@@ -1,0 +1,464 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ScholarLoop",
+    "version": "0.1.0",
+    "description": "Agentic academic article platform REST and SSE API specification."
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "schemas": {
+      "ValidationFieldError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["loc", "msg", "type"],
+        "properties": {
+          "loc": { "type": "string" },
+          "msg": { "type": "string" },
+          "type": { "type": "string" }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "message", "context"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "context": { "type": "object" }
+            }
+          }
+        }
+      },
+      "AccountProvider": { "type": "string", "enum": ["anthropic", "openai_compatible", "mock"] },
+      "AccountStatus": { "type": "string", "enum": ["active", "degraded", "disabled"] },
+      "BindingRole": {
+        "type": "string",
+        "enum": ["planner", "architect", "researcher", "writer", "reviewer", "validator", "compactor"]
+      },
+      "BindingStrategy": { "type": "string", "enum": ["dedicated", "round_robin", "failover"] },
+      "RunStateName": {
+        "type": "string",
+        "enum": [
+          "INTAKE", "PLANNING", "EXECUTING", "VALIDATING", "DECIDING", "CHECKPOINT",
+          "REPLANNING", "DONE", "STOPPED_EROSION", "STOPPED_BUDGET", "STOPPED_ERRORS", "STOPPED_USER"
+        ]
+      },
+      "StopOption": {
+        "type": "string",
+        "enum": ["finish", "continue", "rollback", "edit_goals", "add_budget", "continue_anyway"]
+      },
+      "OnComplete": { "type": "string", "enum": ["ask", "finish", "continue_once"] },
+      "ProviderStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mock", "live_adapters_implemented", "accounts_configured", "live_providers_enabled", "account_store_ready"],
+        "properties": {
+          "mock": { "type": "boolean" },
+          "live_adapters_implemented": { "type": "array", "items": { "type": "string" } },
+          "accounts_configured": { "type": "integer", "minimum": 0 },
+          "live_providers_enabled": { "type": "boolean" },
+          "account_store_ready": { "type": "boolean" }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "version", "contract_version", "env", "policies_loaded", "rubric_loaded", "providers", "config_errors"],
+        "properties": {
+          "status": { "type": "string", "enum": ["ok", "degraded"] },
+          "version": { "type": "string" },
+          "contract_version": { "type": "integer" },
+          "env": { "type": "string" },
+          "policies_loaded": { "type": "boolean" },
+          "rubric_loaded": { "type": "boolean" },
+          "providers": { "$ref": "#/components/schemas/ProviderStatus" },
+          "config_errors": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      },
+      "ConfigResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["contract_version", "policies_path", "policies", "rubric"],
+        "properties": {
+          "contract_version": { "type": "integer" },
+          "policies_path": { "type": "string" },
+          "overrides_path": { "type": ["string", "null"] },
+          "project": { "type": ["string", "null"] },
+          "policies": { "type": "object" },
+          "rubric": { "type": "object" }
+        }
+      },
+      "ContractListResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["contract_version", "names", "schema_url_template"],
+        "properties": {
+          "contract_version": { "type": "integer" },
+          "names": { "type": "array", "items": { "type": "string" } },
+          "schema_url_template": { "type": "string" }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "minLength": 3, "maxLength": 255, "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" },
+          "password": { "type": "string", "minLength": 8, "maxLength": 256 }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "minLength": 3, "maxLength": 255, "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" },
+          "password": { "type": "string", "minLength": 1, "maxLength": 256 }
+        }
+      },
+      "UserView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "email", "created_at"],
+        "properties": {
+          "id": { "type": "string", "minLength": 26, "maxLength": 26 },
+          "email": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "TokenResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["access_token", "user"],
+        "properties": {
+          "access_token": { "type": "string", "minLength": 1 },
+          "token_type": { "type": "string", "default": "bearer" },
+          "user": { "$ref": "#/components/schemas/UserView" }
+        }
+      },
+      "BudgetPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tokens": { "type": ["integer", "null"], "minimum": 1000, "maximum": 1000000000 },
+          "usd": { "type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 1000000 }
+        }
+      },
+      "AccountCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["provider", "label", "api_key"],
+        "properties": {
+          "provider": { "$ref": "#/components/schemas/AccountProvider" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "api_key": { "type": "string", "minLength": 1, "maxLength": 512, "format": "password", "writeOnly": true },
+          "base_url": { "type": ["string", "null"], "maxLength": 500 },
+          "budget": { "$ref": "#/components/schemas/BudgetPatch" }
+        }
+      },
+      "AccountPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "api_key": { "type": ["string", "null"], "minLength": 1, "maxLength": 512, "format": "password", "writeOnly": true },
+          "label": { "type": ["string", "null"], "minLength": 1, "maxLength": 64 },
+          "base_url": { "type": ["string", "null"], "maxLength": 500 },
+          "budget": { "anyOf": [{ "$ref": "#/components/schemas/BudgetPatch" }, { "type": "null" }] },
+          "status": { "anyOf": [{ "$ref": "#/components/schemas/AccountStatus" }, { "type": "null" }] }
+        }
+      },
+      "AccountView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "owner_id", "provider", "label", "status", "key_fingerprint", "key_mask", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "minLength": 26, "maxLength": 26 },
+          "owner_id": { "type": "string", "minLength": 26, "maxLength": 26 },
+          "provider": { "$ref": "#/components/schemas/AccountProvider" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "status": { "$ref": "#/components/schemas/AccountStatus" },
+          "base_url": { "type": ["string", "null"] },
+          "key_fingerprint": { "type": "string", "minLength": 12, "maxLength": 12 },
+          "key_mask": { "type": "string", "minLength": 4 },
+          "budget": { "$ref": "#/components/schemas/BudgetPatch" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DeleteResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["account_id"],
+        "properties": {
+          "deleted": { "type": "boolean", "default": true },
+          "account_id": { "type": "string" },
+          "disabled_roles": { "type": "array", "items": { "type": "string" } },
+          "replaced_in": { "type": "array", "items": { "type": "string" } },
+          "removed_from": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "AccountTestResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ok", "account_id", "provider"],
+        "properties": {
+          "ok": { "type": "boolean" },
+          "account_id": { "type": "string" },
+          "provider": { "$ref": "#/components/schemas/AccountProvider" },
+          "model": { "type": ["string", "null"] },
+          "latency_ms": { "type": "integer", "minimum": 0, "default": 0 },
+          "error_code": { "type": ["string", "null"] },
+          "error_message": { "type": ["string", "null"] }
+        }
+      },
+      "BindingPut": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["account_ids", "model", "max_input_tokens", "max_output_tokens"],
+        "properties": {
+          "account_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 16 },
+          "strategy": { "$ref": "#/components/schemas/BindingStrategy", "default": "failover" },
+          "model": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "max_input_tokens": { "type": "integer", "minimum": 1000, "maximum": 2000000 },
+          "max_output_tokens": { "type": "integer", "minimum": 64, "maximum": 64000 },
+          "enabled": { "type": "boolean", "default": true }
+        }
+      },
+      "BindingView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "account_ids", "strategy", "model", "max_input_tokens", "max_output_tokens", "enabled"],
+        "properties": {
+          "role": { "$ref": "#/components/schemas/BindingRole" },
+          "account_ids": { "type": "array", "items": { "type": "string" } },
+          "strategy": { "$ref": "#/components/schemas/BindingStrategy" },
+          "model": { "type": "string" },
+          "max_input_tokens": { "type": "integer" },
+          "max_output_tokens": { "type": "integer" },
+          "enabled": { "type": "boolean" },
+          "updated_at": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "RunCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "brief": { "type": ["object", "null"] },
+          "quick_edit": { "type": ["object", "null"] },
+          "on_complete": { "$ref": "#/components/schemas/OnComplete", "default": "ask" },
+          "max_wall_seconds": { "type": ["number", "null"] },
+          "wait": { "type": "boolean", "default": false }
+        }
+      },
+      "UserDecision": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["option"],
+        "properties": {
+          "option": { "$ref": "#/components/schemas/StopOption" },
+          "extra_tokens": { "type": ["integer", "null"], "minimum": 1, "maximum": 100000000 },
+          "extra_iterations": { "type": ["integer", "null"], "minimum": 1, "maximum": 200 },
+          "new_goal": { "type": ["string", "null"], "maxLength": 800 },
+          "note": { "type": ["string", "null"], "maxLength": 4000 },
+          "wait": { "type": "boolean", "default": false }
+        }
+      },
+      "RunEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["seq", "ts", "type", "state", "iter", "detail"],
+        "properties": {
+          "seq": { "type": "integer", "minimum": 0 },
+          "ts": { "type": "string", "format": "date-time" },
+          "type": { "type": "string" },
+          "state": { "$ref": "#/components/schemas/RunStateName" },
+          "iter": { "type": "integer", "minimum": 0 },
+          "detail": { "type": "object" }
+        }
+      },
+      "RunView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "project_id", "kind", "state", "iter", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string" },
+          "project_id": { "type": "string" },
+          "owner_id": { "type": ["string", "null"] },
+          "kind": { "type": "string" },
+          "state": { "$ref": "#/components/schemas/RunStateName" },
+          "iter": { "type": "integer" },
+          "brief": { "type": ["object", "null"] },
+          "plan": { "type": ["object", "null"] },
+          "goal_override": { "type": ["string", "null"] },
+          "decisions": { "type": "array", "items": { "type": "object" } },
+          "q_series": { "type": "array", "items": { "type": "integer" } },
+          "best_q": { "type": ["number", "null"] },
+          "best_snapshot_id": { "type": ["string", "null"] },
+          "stop_report": { "type": ["object", "null"] },
+          "verdict": { "type": ["object", "null"] },
+          "checkpoint_kind": { "type": ["string", "null"] },
+          "on_complete": { "$ref": "#/components/schemas/OnComplete" },
+          "user_stop_requested": { "type": "boolean" },
+          "running": { "type": "boolean" },
+          "tokens_spent": { "type": "integer" },
+          "last_error": { "type": ["string", "null"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/health": {
+      "get": { "tags": ["health"], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HealthResponse" } } } } } }
+    },
+    "/api/version": {
+      "get": { "tags": ["health"], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } } }
+    },
+    "/api/config": {
+      "get": { "tags": ["config"], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConfigResponse" } } } }, "503": { "description": "Unavailable", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } } }
+    },
+    "/api/contracts": {
+      "get": { "tags": ["config"], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContractListResponse" } } } } } }
+    },
+    "/api/contracts/{name}/schema": {
+      "get": {
+        "tags": ["config"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }, "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "tags": ["auth"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RegisterRequest" } } } },
+        "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TokenResponse" } } } }, "409": { "description": "Conflict", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }, "422": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["auth"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TokenResponse" } } } }, "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }, "422": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["auth"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserView" } } } }, "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      }
+    },
+    "/api/accounts": {
+      "get": {
+        "tags": ["accounts"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/AccountView" } } } } }, "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      },
+      "post": {
+        "tags": ["accounts"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountCreate" } } } },
+        "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountView" } } } }, "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }, "422": { "description": "Invalid key/payload", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      }
+    },
+    "/api/accounts/{account_id}": {
+      "get": {
+        "tags": ["accounts"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "account_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountView" } } } }, "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      },
+      "patch": {
+        "tags": ["accounts"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "account_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountPatch" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountView" } } } }, "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }, "422": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      },
+      "delete": {
+        "tags": ["accounts"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "account_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "replacement_account_id", "in": "query", "required": false, "schema": { "type": ["string", "null"] } },
+          { "name": "disable_roles", "in": "query", "required": false, "schema": { "type": "boolean", "default": false } }
+        ],
+        "responses": { "200": { "description": "Deleted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeleteResult" } } } }, "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }, "409": { "description": "Conflict: sole account of enabled role(s)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }, "422": { "description": "Invalid replacement", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      }
+    },
+    "/api/accounts/{account_id}/test": {
+      "post": {
+        "tags": ["accounts"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "account_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Probe result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountTestResult" } } } }, "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      }
+    },
+    "/api/agents/{role}/binding": {
+      "get": {
+        "tags": ["agents"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "role", "in": "path", "required": true, "schema": { "$ref": "#/components/schemas/BindingRole" } }],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BindingView" } } } }, "404": { "description": "No binding", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      },
+      "put": {
+        "tags": ["agents"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "role", "in": "path", "required": true, "schema": { "$ref": "#/components/schemas/BindingRole" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BindingPut" } } } },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BindingView" } } } }, "404": { "description": "Account not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }, "422": { "description": "Contract violation", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      }
+    },
+    "/api/projects/{project_id}/runs": {
+      "post": {
+        "tags": ["runs"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "project_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RunCreate" } } } },
+        "responses": { "202": { "description": "Accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RunView" } } } }, "409": { "description": "Needs user input", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
+      }
+    },
+    "/api/runs/{run_id}": {
+      "get": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RunView" } } } } } }
+    },
+    "/api/runs/{run_id}/decision": {
+      "post": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserDecision" } } } }, "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RunView" } } } } } }
+    },
+    "/api/runs/{run_id}/stop": {
+      "post": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RunView" } } } } } }
+    },
+    "/api/runs/{run_id}/events": {
+      "get": {
+        "tags": ["runs"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "after", "in": "query", "required": false, "schema": { "type": "integer", "default": -1 } },
+          { "name": "once", "in": "query", "required": false, "schema": { "type": "boolean", "default": false } }
+        ],
+        "responses": { "200": { "description": "SSE stream", "content": { "text/event-stream": { "schema": { "type": "string" } } } } }
+      }
+    },
+    "/api/runs/{run_id}/digest": {
+      "get": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+    },
+    "/api/runs/{run_id}/ledger": {
+      "get": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+    },
+    "/api/runs/{run_id}/article": {
+      "get": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+    },
+    "/api/runs/{run_id}/usage": {
+      "get": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+    }
+  }
+}

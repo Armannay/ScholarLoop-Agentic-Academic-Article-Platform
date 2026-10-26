@@ -3,13 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "ScholarLoop status console: health, effective policies, rubric gates and contract schemas.",
+  "description": "ScholarLoop UI: operator auth, encrypted provider accounts, role bindings, and status console.",
   "scripts": {
     "dev": "vite",
     "build": "npm run lint && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "esbuild src/__tests__/app.test.tsx --bundle --platform=node --format=esm --packages=external --loader:.css=empty --outfile=.vite/app.test.mjs && node --test .vite/app.test.mjs"
   },
   "dependencies": {
     "react": "19.2.0",
