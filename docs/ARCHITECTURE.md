@@ -27,11 +27,12 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 | Tools | `app/tools/` | scoped registry: role/project grants, untrusted bounded results |
 | Planner | `app/planner/` | plan construction and verdict evaluation (LLM, JSON-schema) |
 | Orchestrator | `app/orchestrator/` | the loop: state machine, scheduling, decision |
-| API | `app/api/` | FastAPI surface (`/api/health`, `/api/config`, contracts) |
+| API | `app/api/` | FastAPI surface (health, config, contracts, auth, accounts, runs + SSE) |
 
-`contracts`, `core`, `providers`, `accounts`, `governor`, `memory`, `article`, `agents`,
-`skills`, `tools`, `scripts` and `api` exist today; `planner` and `orchestrator` remain
-the interfaces this foundation was built to accept.
+All of the packages above exist today, including `planner` (Step 8) and
+`orchestrator` (Step 9): intake, the twelve-state run machine with
+file-persisted run records, the dependency-aware scheduler, the pure loop
+controller with its erosion detectors, and the completion checkpoint flow.
 
 ### Article store (implemented)
 
@@ -63,9 +64,7 @@ is never converted into a repair. `agents/registry.py` maps roles to agents, res
 deterministic, budgeted), and `tools/base.py` denies by default, narrows per project,
 validates arguments and returns size-capped untrusted results.
 
-Only `contracts`, `core`, `providers`, `accounts`, `governor`, `memory`, `article`,
-`agents`, `skills`, `tools`, `scripts` and `api` exist today; `planner` and
-`orchestrator` remain the interfaces this foundation was built to accept. The account store
+The account store
 (`app/accounts/`) holds provider keys encrypted at rest (AES-GCM envelope,
 `APP_MASTER_KEY`), resolves them at call time through `app/providers/pool.py`, and
 ships live adapters for Anthropic (Claude Console keys for the Planner) and
