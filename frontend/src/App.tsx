@@ -1,27 +1,66 @@
-import { useCallback, useState } from 'react'
-import { fetchConfig, fetchContracts, fetchHealth } from './api'
-import { useAsync } from './useApi'
-import type { ConfigResponse, ContractListResponse, HealthResponse, Policies } from './types'
-import { SchemaViewer } from './SchemaViewer'
+import { useCallback, useEffect, useState } from 'react'
+import { AccountsPage } from './AccountsPage'
+import { AgentsPage } from './AgentsPage'
+import { AuthPage } from './AuthPage'
+import {
+  fetchAllBindings,
+  fetchConfig,
+  fetchContracts,
+  fetchHealth,
+  isMockMode,
+  listAccounts,
+  setMockMode,
+  subscribeMockMode,
+} from './api'
+import { AuthProvider, useAuth } from './auth'
+import { StatusConsole } from './StatusConsole'
 import { StatusPill } from './StatusPill'
+import {
+  PRIMARY_BINDING_ROLES,
+  type AccountView,
+  type BindingRole,
+  type BindingView,
+  type ConfigResponse,
+  type ContractListResponse,
+  type HealthResponse,
+} from './types'
+import { useAsync } from './useApi'
 import './styles.css'
 
 const HEALTH_POLL_MS = 5000
-const BUDGET_KEYS = [
-  'run_token_cap',
-  'iteration_token_cap',
-  'call_input_cap',
-  'max_iterations',
-  'max_parallel',
-  'digest_max_tokens',
-  'recent_window',
-  'compact_trigger',
-  'q_min',
-] as const
 
-const EROSION_KEYS = ['plateau', 'regression', 'oscillation', 'diminishing', 'issue_churn', 'error_streak'] as const
+export type PageId = 'accounts' | 'agents' | 'status'
+
+const EMPTY_BINDINGS: Readonly<Record<BindingRole, BindingView | null>> = {
+  planner: null,
+  architect: null,
+  researcher: null,
+  writer: null,
+  reviewer: null,
+  validator: null,
+  compactor: null,
+}
+
+function readHashPage(): PageId {
+  if (typeof window === 'undefined') return 'accounts'
+  const hash = window.location.hash.replace(/^#\/?/, '')
+  if (hash === 'agents' || hash === 'status' || hash === 'accounts') return hash
+  return 'accounts'
+}
 
 export function App(): React.JSX.Element {
+  return (
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
+  )
+}
+
+export function AppShell({ initialPage }: { initialPage?: PageId | undefined }): React.JSX.Element {
+  const { user, loading: authLoading, logout } = useAuth()
+  const [page, setPage] = useState<PageId>(() => initialPage ?? readHashPage())
+  const [mockActive, setMockActive] = useState<boolean>(() => isMockMode())
+
   const loadHealth = useCallback((signal?: AbortSignal) => fetchHealth(signal), [])
   const loadConfig = useCallback((signal?: AbortSignal) => fetchConfig(signal), [])
   const loadContracts = useCallback((signal?: AbortSignal) => fetchContracts(signal), [])
@@ -29,7 +68,77 @@ export function App(): React.JSX.Element {
   const health = useAsync<HealthResponse>(loadHealth, HEALTH_POLL_MS)
   const config = useAsync<ConfigResponse>(loadConfig)
   const contracts = useAsync<ContractListResponse>(loadContracts)
-  const [selected, setSelected] = useState<string | null>(null)
+
+  const [accounts, setAccounts] = useState<AccountView[]>([])
+  const [bindings, setBindings] = useState<Record<BindingRole, BindingView | null>>({
+    ...EMPTY_BINDINGS,
+  })
+  const [workspaceLoading, setWorkspaceLoading] = useState(false)
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null)
+  const [refreshTick, setRefreshTick] = useState(0)
+
+  const refreshWorkspace = useCallback(() => {
+    setRefreshTick((n) => n + 1)
+    health.reload()
+  }, [health])
+
+  useEffect(() => {
+    return subscribeMockMode((enabled) => {
+      setMockActive(enabled)
+      health.reload()
+      config.reload()
+      contracts.reload()
+      setRefreshTick((n) => n + 1)
+    })
+  }, [health, config, contracts])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onHash = (): void => setPage(readHashPage())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  const navigate = (target: PageId): void => {
+    setPage(target)
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `#${target}`)
+    }
+  }
+
+  useEffect(() => {
+    if (!user) {
+      setAccounts([])
+      setBindings({ ...EMPTY_BINDINGS })
+      setWorkspaceError(null)
+      return
+    }
+    const controller = new AbortController()
+    setWorkspaceLoading(true)
+    Promise.all([listAccounts(controller.signal), fetchAllBindings( undefined, controller.signal)])
+      .then(([accList, bindingMap]) => {
+        if (controller.signal.aborted) return
+        setAccounts(accList)
+        setBindings(bindingMap)
+        setWorkspaceError(null)
+      })
+      .catch((cause) => {
+        if (controller.signal.aborted) return
+        setWorkspaceError(cause instanceof Error ? cause.message : 'Failed to load workspace data')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setWorkspaceLoading(false)
+      })
+    return () => controller.abort()
+  }, [user, refreshTick])
+
+  const configuredPrimaryCount = PRIMARY_BINDING_ROLES.filter(
+    (role) => bindings[role] !== null && bindings[role]?.enabled,
+  ).length
+
+  const toggleMock = (): void => {
+    setMockMode(!mockActive)
+  }
 
   return (
     <div className="app">
@@ -40,39 +149,119 @@ export function App(): React.JSX.Element {
             Deterministic orchestrator · planning-only Planner · five executing agents
           </p>
         </div>
+
         <div className="masthead-status">
           <StatusPill
-            tone={health.data?.status === 'ok' ? 'ok' : health.data ? 'warn' : health.error ? 'bad' : 'idle'}
+            tone={
+              mockActive
+                ? 'ok'
+                : health.data?.status === 'ok'
+                  ? 'ok'
+                  : health.data
+                    ? 'warn'
+                    : health.error
+                      ? 'bad'
+                      : 'idle'
+            }
             label={
-              health.error
-                ? 'API unreachable'
-                : health.data
-                  ? `API ${health.data.status}`
-                  : 'checking API…'
+              mockActive
+                ? 'Mock API active'
+                : health.error
+                  ? 'API unreachable'
+                  : health.data
+                    ? `API ${health.data.status}`
+                    : 'checking API…'
             }
           />
           {health.data && <span className="mono dim">contract v{health.data.contract_version}</span>}
+          <button
+            type="button"
+            className={mockActive ? 'btn btn-sm btn-mock-on' : 'btn btn-sm'}
+            onClick={toggleMock}
+            title="Switch between live /api proxy and in-memory OpenAPI mock server"
+          >
+            {mockActive ? 'Mock API: On' : 'Mock API: Off'}
+          </button>
+          {user && (
+            <div className="user-bar">
+              <span className="mono small">{user.email}</span>
+              <button type="button" className="btn btn-sm" onClick={logout}>
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
-      {health.error && (
-        <section className="panel panel-bad">
-          <h2>Backend not reachable</h2>
-          <p className="mono">{health.error}</p>
-          <p>
-            The UI calls <code>/api</code> through the dev-server proxy. Start the API with{' '}
-            <code>make run</code> (port 8000) and reload.
-          </p>
+      <nav className="top-nav" aria-label="Primary navigation">
+        <button
+          type="button"
+          className={page === 'accounts' ? 'nav-tab nav-tab-active' : 'nav-tab'}
+          onClick={() => navigate('accounts')}
+        >
+          Accounts
+          {user && <span className="nav-count mono">{accounts.length}</span>}
+        </button>
+        <button
+          type="button"
+          className={page === 'agents' ? 'nav-tab nav-tab-active' : 'nav-tab'}
+          onClick={() => navigate('agents')}
+        >
+          Agents
+          {user && (
+            <span className="nav-count mono">
+              {configuredPrimaryCount}/{PRIMARY_BINDING_ROLES.length}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          className={page === 'status' ? 'nav-tab nav-tab-active' : 'nav-tab'}
+          onClick={() => navigate('status')}
+        >
+          Status & Schemas
+        </button>
+      </nav>
+
+      {!mockActive && health.error && (
+        <section className="panel panel-bad banner-panel">
+          <div className="panel-head-wrap">
+            <div>
+              <h2>Backend not reachable</h2>
+              <p className="mono small">{health.error}</p>
+              <p className="subtitle">
+                Start the FastAPI backend with <code>make run</code> on port 8000, or enable the
+                built-in OpenAPI Mock Server so UI work is never blocked.
+              </p>
+            </div>
+            <button type="button" className="btn btn-primary" onClick={() => setMockMode(true)}>
+              Enable Mock API
+            </button>
+          </div>
+        </section>
+      )}
+
+      {!mockActive && health.data && health.data.providers.account_store_ready === false && (
+        <section className="panel panel-warn banner-panel">
+          <div className="panel-head-wrap">
+            <div>
+              <h2>Account store is sealed</h2>
+              <p className="subtitle">
+                <code>APP_MASTER_KEY</code> is not set on the backend, so encrypting/decrypting
+                credentials and signing JWTs are disabled. Configure <code>APP_MASTER_KEY</code> in{' '}
+                <code>.env</code> or switch to Mock API mode.
+              </p>
+            </div>
+            <button type="button" className="btn" onClick={() => setMockMode(true)}>
+              Use Mock API
+            </button>
+          </div>
         </section>
       )}
 
       {health.data && health.data.status === 'degraded' && (
-        <section className="panel panel-warn">
+        <section className="panel panel-warn banner-panel">
           <h2>Configuration degraded</h2>
-          <p>
-            The service is up but a config file failed to load, so the loop would not obey the
-            numbers below. Fix the file and restart.
-          </p>
           <ul className="mono">
             {Object.entries(health.data.config_errors).map(([file, message]) => (
               <li key={file}>
@@ -83,19 +272,41 @@ export function App(): React.JSX.Element {
         </section>
       )}
 
-      <section className="grid">
-        <RuntimePanel health={health.data} error={health.error} />
-        <BudgetPanel policies={config.data?.policies ?? null} error={config.error} />
-        <ErosionPanel policies={config.data?.policies ?? null} />
-        <RubricPanel config={config.data} error={config.error} />
-        <ArticleTypesPanel config={config.data} />
-        <ContractsPanel
-          contracts={contracts.data}
-          error={contracts.error}
-          selected={selected}
-          onSelect={setSelected}
-        />
-      </section>
+      <main className="main-area">
+        {page === 'status' ? (
+          <StatusConsole
+            health={health.data}
+            healthError={health.error}
+            config={config.data}
+            configError={config.error}
+            contracts={contracts.data}
+            contractsError={contracts.error}
+          />
+        ) : authLoading ? (
+          <section className="panel">
+            <p className="dim">Restoring session…</p>
+          </section>
+        ) : !user ? (
+          <AuthPage mockMode={mockActive} />
+        ) : page === 'accounts' ? (
+          <AccountsPage
+            accounts={accounts}
+            bindings={bindings}
+            loading={workspaceLoading}
+            error={workspaceError}
+            onRefresh={refreshWorkspace}
+          />
+        ) : (
+          <AgentsPage
+            accounts={accounts}
+            bindings={bindings}
+            policies={config.data?.policies ?? null}
+            loading={workspaceLoading}
+            onRefresh={refreshWorkspace}
+            onOpenAccounts={() => navigate('accounts')}
+          />
+        )}
+      </main>
 
       <footer className="footer">
         <span>
@@ -109,255 +320,10 @@ export function App(): React.JSX.Element {
           ) : null}
         </span>
         <span className="dim">
-          No key material is ever rendered here: the API exposes account fingerprints only.
+          HARD RULE 2: keys are write-only; only 4-char masks and 12-char ciphertext fingerprints
+          are ever rendered.
         </span>
       </footer>
     </div>
   )
-}
-
-function Panel({
-  title,
-  subtitle,
-  children,
-  tone,
-}: {
-  title: string
-  subtitle?: string
-  children: React.ReactNode
-  tone?: 'ok' | 'warn' | 'bad' | 'idle' | undefined
-}): React.JSX.Element {
-  return (
-    <section className="panel">
-      <div className="panel-head">
-        <h2>{title}</h2>
-        {tone && <StatusPill tone={tone} label="" />}
-      </div>
-      {subtitle && <p className="subtitle">{subtitle}</p>}
-      {children}
-    </section>
-  )
-}
-
-function RuntimePanel({
-  health,
-  error,
-}: {
-  health: HealthResponse | null
-  error: string | null
-}): React.JSX.Element {
-  return (
-    <Panel title="Runtime" subtitle="Loaded configuration and provider availability">
-      {error && <p className="mono bad">{error}</p>}
-      {health && (
-        <dl className="kv">
-          <dt>Status</dt>
-          <dd>{health.status}</dd>
-          <dt>Environment</dt>
-          <dd>{health.env}</dd>
-          <dt>App version</dt>
-          <dd>{health.version}</dd>
-          <dt>Contracts</dt>
-          <dd>v{health.contract_version}</dd>
-          <dt>Policies</dt>
-          <dd>{health.policies_loaded ? 'loaded' : 'failed to load'}</dd>
-          <dt>Rubric</dt>
-          <dd>{health.rubric_loaded ? 'loaded' : 'failed to load'}</dd>
-          <dt>Manual digest</dt>
-          <dd>{health.rubric_loaded ? 'claude.md ≤ 2000 tokens' : '—'}</dd>
-          <dt>Provider</dt>
-          <dd>
-            {health.providers.mock ? 'mock (deterministic)' : 'none'}
-            {health.providers.live_adapters_implemented.length === 0
-              ? ' — live adapters not implemented yet'
-              : ` + ${health.providers.live_adapters_implemented.join(', ')}`}
-          </dd>
-        </dl>
-      )}
-    </Panel>
-  )
-}
-
-function BudgetPanel({
-  policies,
-  error,
-}: {
-  policies: Policies | null
-  error: string | null
-}): React.JSX.Element {
-  return (
-    <Panel
-      title="Budgets"
-      subtitle="Nested caps: one call < one iteration < the whole run"
-      tone={policies ? 'ok' : undefined}
-    >
-      {error && <p className="mono bad">{error}</p>}
-      {policies ? (
-        <table className="table">
-          <tbody>
-            {BUDGET_KEYS.map((key) => (
-              <tr key={key}>
-                <th scope="row">{key}</th>
-                <td className="mono">{formatValue(policies[key])}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        !error && <p className="dim">loading…</p>
-      )}
-    </Panel>
-  )
-}
-
-function ErosionPanel({ policies }: { policies: Policies | null }): React.JSX.Element {
-  return (
-    <Panel title="Erosion detectors" subtitle="How the loop controller decides to stop improving">
-      {policies ? (
-        <table className="table">
-          <tbody>
-            {EROSION_KEYS.map((key) => (
-              <tr key={key}>
-                <th scope="row">{key}</th>
-                <td className="mono">{formatValue(policies[key])}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p className="dim">loading…</p>
-      )}
-      {policies && (
-        <p className="subtitle">
-          Model tiers: {Object.entries(policies.model_tiers).map(([role, tier]) => `${role}→${tier}`).join(' · ')}
-        </p>
-      )}
-    </Panel>
-  )
-}
-
-function RubricPanel({
-  config,
-  error,
-}: {
-  config: ConfigResponse | null
-  error: string | null
-}): React.JSX.Element {
-  if (error) {
-    return (
-      <Panel title="Rubric" tone="bad">
-        <p className="mono bad">{error}</p>
-      </Panel>
-    )
-  }
-  if (!config) {
-    return (
-      <Panel title="Rubric">
-        <p className="dim">loading…</p>
-      </Panel>
-    )
-  }
-  const { rubric } = config
-  return (
-    <Panel
-      title="Rubric"
-      subtitle={`${rubric.gates.length} hard gates · criteria weights sum to ${rubric.weights_total}`}
-      tone="ok"
-    >
-      <h3>Hard gates</h3>
-      <ul className="list mono">
-        {rubric.gates.map((gate) => (
-          <li key={gate}>{gate}</li>
-        ))}
-      </ul>
-      <h3>Soft criteria</h3>
-      <table className="table">
-        <tbody>
-          {Object.entries(rubric.criteria_weights)
-            .sort(([, left], [, right]) => right - left)
-            .map(([name, weight]) => (
-              <tr key={name}>
-                <th scope="row">{name}</th>
-                <td className="mono">{weight}</td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
-    </Panel>
-  )
-}
-
-function ArticleTypesPanel({ config }: { config: ConfigResponse | null }): React.JSX.Element {
-  if (!config) {
-    return (
-      <Panel title="Article types">
-        <p className="dim">loading…</p>
-      </Panel>
-    )
-  }
-  return (
-    <Panel
-      title="Article types"
-      subtitle={`Abstract range: ${config.rubric.abstract_word_range.min}–${config.rubric.abstract_word_range.max} words`}
-    >
-      <table className="table">
-        <tbody>
-          {Object.entries(config.rubric.article_types).map(([type, sections]) => (
-            <tr key={type}>
-              <th scope="row">{type}</th>
-              <td className="mono">{sections.join(' → ')}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Panel>
-  )
-}
-
-function ContractsPanel({
-  contracts,
-  error,
-  selected,
-  onSelect,
-}: {
-  contracts: ContractListResponse | null
-  error: string | null
-  selected: string | null
-  onSelect: (name: string | null) => void
-}): React.JSX.Element {
-  return (
-    <Panel
-      title="Contracts v1"
-      subtitle="Pydantic v2 models exported to JSON Schema — the wire format every step shares"
-      tone={contracts ? 'ok' : undefined}
-    >
-      {error && <p className="mono bad">{error}</p>}
-      {contracts && (
-        <>
-          <div className="chips">
-            {contracts.names.map((name) => (
-              <button
-                key={name}
-                type="button"
-                className={name === selected ? 'chip chip-active' : 'chip'}
-                onClick={() => onSelect(name === selected ? null : name)}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-          {selected && <SchemaViewer name={selected} />}
-        </>
-      )}
-    </Panel>
-  )
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === 'object' && value !== null) {
-    return Object.entries(value as Record<string, unknown>)
-      .map(([key, nested]) => `${key}=${String(nested)}`)
-      .join(' ')
-  }
-  return String(value)
 }

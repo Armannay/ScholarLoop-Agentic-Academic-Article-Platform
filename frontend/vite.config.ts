@@ -1,36 +1,85 @@
-import { defineConfig, loadEnv } from 'vite'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { MockApiServer } from './src/mockServer'
+
+function mockApiPlugin(): Plugin {
+  const mock = new MockApiServer()
+  return {
+    name: 'scholarloop-mock-api',
+    configureServer(server) {
+      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: () => void) => {
+        const url = req.url ?? '/'
+        if (!url.startsWith('/api')) {
+          next()
+          return
+        }
+        const chunks: Buffer[] = []
+        req.on('data', (chunk: Buffer) => chunks.push(chunk))
+        req.on('end', () => {
+          const headers = new Headers()
+          for (const [key, val] of Object.entries(req.headers)) {
+            if (typeof val === 'string') headers.set(key, val)
+            else if (Array.isArray(val)) headers.set(key, val.join(', '))
+          }
+          const init: RequestInit = { method: req.method ?? 'GET', headers }
+          if (chunks.length > 0 && req.method !== 'GET' && req.method !== 'HEAD') {
+            init.body = Buffer.concat(chunks).toString('utf-8')
+          }
+          void mock
+            .fetch(`http://scholarloop.local${url}`, init)
+            .then(async (mockRes) => {
+              res.statusCode = mockRes.status
+              mockRes.headers.forEach((v, k) => res.setHeader(k, v))
+              const body = await mockRes.text()
+              res.end(body)
+            })
+            .catch((err: unknown) => {
+              res.statusCode = 500
+              res.setHeader('content-type', 'application/json')
+              res.end(
+                JSON.stringify({
+                  error: {
+                    code: 'mock_error',
+                    message: err instanceof Error ? err.message : 'mock error',
+                    context: {},
+                  },
+                }),
+              )
+            })
+        })
+      })
+    },
+  }
+}
 
 // Dev server settings are chosen for a proxied, sandboxed environment:
-//
-//  * host 0.0.0.0 so the preview proxy in front of the sandbox can reach it;
-//  * allowedHosts true so a preview hostname (not just localhost) is accepted;
-//  * the browser only ever calls same-origin /api, which this server proxies to the
-//    backend. The browser is never asked to resolve "localhost" itself, because the
-//    browser is not where the backend runs.
-//
-// VITE_PROXY_TARGET overrides the proxy target (docker compose points it at the
-// backend service); VITE_API_BASE_URL would bypass the proxy entirely, so it is
-// deliberately empty by default.
+//  * host 0.0.0.0 + allowedHosts true so the preview proxy can reach it;
+//  * browser calls same-origin /api, proxied to VITE_PROXY_TARGET (or served by
+//    mockApiPlugin when VITE_API_MOCK=true so frontend work is never blocked).
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const target = env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000'
+  const enableServerMock = env.VITE_API_MOCK === 'true' || env.VITE_MOCK_SERVER === 'true'
 
   return {
-    plugins: [react()],
+    plugins: enableServerMock ? [mockApiPlugin(), react()] : [react()],
     server: {
       host: '0.0.0.0',
       port: 5173,
       strictPort: true,
       allowedHosts: true,
-      proxy: {
-        '/api': {
-          target,
-          changeOrigin: true,
-          secure: false,
-        },
-      },
-      // HMR over the preview proxy: keep the client on the proxied host/port.
+      ...(enableServerMock
+        ? {}
+        : {
+            proxy: {
+              '/api': {
+                target,
+                changeOrigin: true,
+                secure: false,
+              },
+            },
+          }),
       hmr: {
         clientPort: 443,
       },
