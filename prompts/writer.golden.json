@@ -1,0 +1,1 @@
+{"input":{"role":"writer","section_id":"introduction","source_ids":[]},"expected":{"section_id":"introduction","patch":{"section_id":"introduction","base_version":0,"ops":[{"op":"replace_section","text":""}]},"status":"needs_user_input","missing_inputs":["Evidence required"]}}
