@@ -38,6 +38,7 @@ from app.api.routers import agents as agents_router
 from app.api.routers import auth as auth_router
 from app.api.routers import config as config_router
 from app.api.routers import health as health_router
+from app.api.routers import projects as projects_router
 from app.api.routers import runs as runs_router
 from app.core.errors import ConfigError, ScholarLoopError
 from app.core.ids import new_ulid
@@ -226,6 +227,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router.router)
     app.include_router(accounts_router.router)
     app.include_router(agents_router.router)
+    app.include_router(projects_router.router)
     app.include_router(runs_router.router)
 
     @app.get("/", include_in_schema=False)

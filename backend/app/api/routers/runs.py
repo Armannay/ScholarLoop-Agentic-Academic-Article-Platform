@@ -20,8 +20,11 @@ Endpoints (all under the house ``/api`` prefix, all authenticated):
 * ``GET /api/runs/{id}/article`` - assembled markdown + sections + sources.
 * ``GET /api/runs/{id}/usage`` - token usage by role/iteration + planner.
 
-There is no Project table in CONTRACTS v1 (see the Step 9 handoff): a
-``project_id`` is an opaque owner-scoped label stored on the run record.
+There is no Project *contract* in CONTRACTS v1 (see the Step 9 handoff): a
+``project_id`` is an opaque owner-scoped label stored on the run record. Since
+Step 11 there is a project *table* (``app.projects``, ``/api/projects``), so a run
+created under a stored project carries that project's ULID as its ``project_id``;
+a legacy slug still works, because this router never required a row to exist.
 Runs of another owner read as 404.
 
 Per-owner wiring: the planner/agents resolve the *caller's* bindings at call

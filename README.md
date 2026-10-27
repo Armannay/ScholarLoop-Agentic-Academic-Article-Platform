@@ -40,12 +40,15 @@ backend/app/
   providers/   LLMProvider Protocol, ProviderError family, MockProvider, live
                adapters (Anthropic, OpenAI-compatible), call-time account pool
   accounts/    encrypted account store, argon2+JWT auth, bindings, usage, audit
+  projects/    project CRUD surface: brief + policy overrides, keyset pagination,
+               RunsQuery seam (active-run guard for PATCH/DELETE)
   memory/      append-only ledger, bounded digest, compactor, source store
   article/     section store, patch application, versioning, snapshots, assembly
   agents/      generic Agent runtime, context builder, registry, governor seam
   skills/      lazy SKILL.md loader, deterministic selection, lint CLI
   tools/       deny-by-default scoped tool registry (concrete tools: Step 6)
-  api/         FastAPI: health, config, contracts, auth, accounts, agent bindings
+  api/         FastAPI: health, config, contracts, auth, accounts, agent bindings,
+               projects, runs
   governor/    nested budgets, token estimator, cache-friendly context, telemetry,
                model tiers
   planner/     plan/delta/evaluate (never writes article text)
@@ -135,3 +138,16 @@ events (run start, empty queue, a newly failing gate, a completed milestone, the
 plateau - which buys the one strategy change), at most once per iteration. Prompts live in
 `app/planner/prompts.py` under a 700-token ceiling with capped output and JSON-schema
 answers, mirrored in `prompts/planner/` and pinned by tests.
+
+Step 11 (projects) complete: `app/projects/` stores a project as a real row (Alembic
+revision `0002_projects`): id, owner, name, description, the CONTRACTS v1 `Brief` it
+writes against, a validated policy-override block, status and timestamps.
+`/api/projects` offers create, keyset-paginated list (`limit` + opaque `cursor`,
+newest first), read, patch and delete, all owner-scoped with foreign ids reading as
+404. A bad brief or policy override is a 422 whose `context.errors[]` names each
+offending field (`brief.target_words`, `policy_overrides.q_min`) and never echoes a
+submitted value. PATCH and DELETE answer 409 `conflict` with
+`context.reason=active_run` while a run of the project is still working, read through
+the `RunsQuery` Protocol (in-memory fake for tests, `StoreRunsQuery` over the persisted
+run records in production); a `CHECKPOINT` run does not block an edit, because the
+loop is waiting for the user.
