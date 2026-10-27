@@ -1,0 +1,6 @@
+summary: "run_created - seq 0, the intake payload was accepted"
+description: "The first frame of every run. `detail` names what kind of run started and at which checkpoint behaviour, which is what the console needs to render the run header before any iteration has finished."
+value: |
+  id: 0
+  event: run_created
+  data: {"seq":0,"ts":"2026-10-26T20:14:03Z","type":"run_created","state":"INTAKE","iter":0,"detail":{"kind":"brief","project_id":"peer-review-2026","on_complete":"ask"}}

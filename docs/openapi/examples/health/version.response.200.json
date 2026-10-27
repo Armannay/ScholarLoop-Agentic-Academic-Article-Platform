@@ -1,0 +1,10 @@
+{
+  "summary": "200 - version identifiers",
+  "description": "Cheap enough to call from the footer; never depends on config having loaded.",
+  "value": {
+    "app_version": "0.9.0",
+    "contract_version": 1,
+    "env": "local",
+    "provider_default": "mock"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "summary": "200 - the caller's accounts, keys never included",
+  "description": "`key_fingerprint` identifies the stored key across rotations; `key_mask` is what a human sees. There is no field in this schema that could carry key material.",
+  "value": [
+    {
+      "id": "01M5Z0X96Y0000000000000071",
+      "owner_id": "01M5Z0X96Y0000000000000051",
+      "provider": "anthropic",
+      "label": "Anthropic - research",
+      "status": "active",
+      "base_url": null,
+      "key_fingerprint": "9f2c41ab7d3e",
+      "key_mask": "****c9f2",
+      "budget": {
+        "tokens": 2000000,
+        "usd": 40.0
+      },
+      "created_at": "2026-09-14T08:21:40Z",
+      "updated_at": "2026-10-20T12:04:55Z"
+    },
+    {
+      "id": "01M5Z0X96Y0000000000000072",
+      "owner_id": "01M5Z0X96Y0000000000000051",
+      "provider": "mock",
+      "label": "Deterministic mock",
+      "status": "active",
+      "base_url": null,
+      "key_fingerprint": "000000000000",
+      "key_mask": "****mock",
+      "budget": {
+        "tokens": null,
+        "usd": null
+      },
+      "created_at": "2026-09-14T08:22:03Z",
+      "updated_at": "2026-09-14T08:22:03Z"
+    }
+  ]
+}

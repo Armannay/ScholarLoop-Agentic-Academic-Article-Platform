@@ -1,0 +1,11 @@
+{
+  "summary": "401 - missing, malformed or expired bearer token",
+  "description": "The same code answers every authentication failure, so a client cannot tell a missing header from an expired token by the code alone - `message` is for humans.",
+  "value": {
+    "error": {
+      "code": "auth_error",
+      "message": "missing bearer token",
+      "context": {}
+    }
+  }
+}

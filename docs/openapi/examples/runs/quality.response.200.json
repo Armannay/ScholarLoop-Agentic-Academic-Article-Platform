@@ -1,0 +1,69 @@
+{
+  "summary": "200 - the latest quality report and the Q series",
+  "description": "All eight hard gates pass at Q=78. `Q` is the weighted mean of the nine rubric criteria (weights come from config/rubric.yaml), and `series` is what the loop's plateau and regression detectors read.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "latest": {
+      "schema_version": 1,
+      "iter": 3,
+      "gates": {
+        "required_sections_present": true,
+        "abstract_within_range": true,
+        "total_words_within_tolerance": true,
+        "citations_resolve_both_ways": true,
+        "references_verified_or_flagged": true,
+        "no_placeholders": true,
+        "citation_style_matches": true,
+        "referenced_figures_and_tables_exist": true
+      },
+      "scores": {
+        "contribution_and_gap": 85,
+        "coherence": 80,
+        "claims_supported": 72,
+        "methods_clarity": 78,
+        "results_match_claims": 75,
+        "literature_coverage": 70,
+        "language": 88,
+        "consistency": 82,
+        "limitations_and_ethics": 70
+      },
+      "Q": 78,
+      "verified_citation_ratio": 0.75,
+      "issues": [
+        {
+          "id": "citation-unverified:src-gopen-1990",
+          "section_id": "references",
+          "severity": "low",
+          "text": "One reference (Gopen & Swan 1990) is cited without a verifiable locator; it stays flagged as an open issue instead of being silently dropped."
+        }
+      ]
+    },
+    "series": [
+      {
+        "iter": 0,
+        "q": 54,
+        "gates_passed": false,
+        "verified_citation_ratio": 0.33
+      },
+      {
+        "iter": 1,
+        "q": 63,
+        "gates_passed": false,
+        "verified_citation_ratio": 0.5
+      },
+      {
+        "iter": 2,
+        "q": 71,
+        "gates_passed": false,
+        "verified_citation_ratio": 0.67
+      },
+      {
+        "iter": 3,
+        "q": 78,
+        "gates_passed": true,
+        "verified_citation_ratio": 0.75
+      }
+    ],
+    "best_q": 78
+  }
+}

@@ -1,0 +1,245 @@
+{
+  "summary": "needs_input scenario - CHECKPOINT waiting for a human",
+  "description": "The validator cannot verify one reference and may not invent a locator, so the loop paused with action=ASK_USER. `options` offers only continue and rollback: finishing is not legal while a gate fails.",
+  "value": {
+    "id": "01M5Z0X96Y000000000000005H",
+    "project_id": "peer-review-2026",
+    "owner_id": "01M5Z0X96Y0000000000000051",
+    "kind": "brief",
+    "state": "CHECKPOINT",
+    "iter": 1,
+    "brief": {
+      "schema_version": 1,
+      "topic": "Tightening peer review with structured checklists",
+      "article_type": "research",
+      "audience": "CS faculty and graduate reviewers",
+      "language": "en",
+      "target_words": 850,
+      "citation_style": "APA7",
+      "must_include": [
+        "a comparison of checklist and free-form reviews"
+      ],
+      "must_avoid": [
+        "claims about journal acceptance rates"
+      ],
+      "provided_data": []
+    },
+    "plan": {
+      "schema_version": 1,
+      "version": 1,
+      "goal": "A research article on structured review checklists that states a gap, reports an observed study, and states its limitations honestly.",
+      "tasks": [
+        {
+          "schema_version": 1,
+          "id": "01M5Z0X96Y000000000000006H",
+          "title": "Draft the section outline and the contribution statement",
+          "role": "architect",
+          "instructions": "Turn the brief into eight sections in rubric order. Name the gap in one sentence and the contribution in one sentence.",
+          "acceptance": [
+            "Every required section has a one-line purpose"
+          ],
+          "depends_on": [],
+          "section_ids": [
+            "introduction",
+            "related-work"
+          ],
+          "token_budget": 6000
+        },
+        {
+          "schema_version": 1,
+          "id": "01M5Z0X96Y000000000000006J",
+          "title": "Collect source cards for the claims in the outline",
+          "role": "researcher",
+          "instructions": "One card per source: title, authors, year, venue, a verbatim snippet and a verification status. Never invent a locator.",
+          "acceptance": [
+            "Every card carries a verbatim snippet"
+          ],
+          "depends_on": [
+            "01M5Z0X96Y000000000000006H"
+          ],
+          "section_ids": [
+            "related-work"
+          ],
+          "token_budget": 8000
+        },
+        {
+          "schema_version": 1,
+          "id": "01M5Z0X96Y000000000000006K",
+          "title": "Write the introduction and related work",
+          "role": "writer",
+          "instructions": "Use only collected cards for citations; APA7 in-text markers.",
+          "acceptance": [
+            "No citation without a card",
+            "No placeholder text"
+          ],
+          "depends_on": [
+            "01M5Z0X96Y000000000000006J"
+          ],
+          "section_ids": [
+            "introduction",
+            "related-work"
+          ],
+          "token_budget": 12000
+        },
+        {
+          "schema_version": 1,
+          "id": "01M5Z0X96Y000000000000006M",
+          "title": "Write the methodology, results and discussion",
+          "role": "writer",
+          "instructions": "Report medians, state the sample, and keep the discussion inside the data.",
+          "acceptance": [
+            "Every result names its measure",
+            "No claim beyond the sample"
+          ],
+          "depends_on": [
+            "01M5Z0X96Y000000000000006K"
+          ],
+          "section_ids": [
+            "methodology",
+            "results",
+            "discussion"
+          ],
+          "token_budget": 16000
+        },
+        {
+          "schema_version": 1,
+          "id": "01M5Z0X96Y000000000000006N",
+          "title": "Review every section against its acceptance criteria",
+          "role": "reviewer",
+          "instructions": "Open one issue per unsupported claim; do not rewrite the prose.",
+          "acceptance": [
+            "Every high-severity issue names a section and a fix"
+          ],
+          "depends_on": [
+            "01M5Z0X96Y000000000000006M"
+          ],
+          "section_ids": [
+            "introduction",
+            "results",
+            "discussion"
+          ],
+          "token_budget": 9000
+        },
+        {
+          "schema_version": 1,
+          "id": "01M5Z0X96Y000000000000006P",
+          "title": "Validate the assembled article against the eight gates",
+          "role": "validator",
+          "instructions": "Run the gates, then score the nine criteria and compute Q.",
+          "acceptance": [
+            "Every gate has a boolean and a reason when false"
+          ],
+          "depends_on": [
+            "01M5Z0X96Y000000000000006N"
+          ],
+          "section_ids": [
+            "references"
+          ],
+          "token_budget": 5000
+        }
+      ]
+    },
+    "goal_override": null,
+    "decisions": [
+      {
+        "schema_version": 1,
+        "iter": 0,
+        "action": "CONTINUE",
+        "reasons": [
+          "q_below_min",
+          "sections_incomplete"
+        ],
+        "evidence": {
+          "Q": 54,
+          "q_min": 70,
+          "gates_failed": 3,
+          "deltas": []
+        }
+      },
+      {
+        "schema_version": 1,
+        "iter": 1,
+        "action": "CONTINUE",
+        "reasons": [
+          "q_below_min"
+        ],
+        "evidence": {
+          "Q": 63,
+          "q_min": 70,
+          "gates_failed": 1,
+          "deltas": [
+            9
+          ]
+        }
+      }
+    ],
+    "q_series": [
+      58,
+      64
+    ],
+    "best_q": 64.0,
+    "best_snapshot_id": "01M5Z0X96Y0000000000000063",
+    "stop_report": {
+      "schema_version": 1,
+      "run_id": "01M5Z0X96Y000000000000005H",
+      "action": "ASK_USER",
+      "reasons": [
+        "unverified_citation_needs_locator"
+      ],
+      "evidence": {
+        "Q": 64,
+        "q_min": 70,
+        "gates_failed": 1,
+        "failed_gates": [
+          "references_verified_or_flagged"
+        ],
+        "blocking_source_id": "src-gopen-1990"
+      },
+      "q_series": [
+        58,
+        64
+      ],
+      "current_q": 64,
+      "best_q": 64.0,
+      "best_iter": 1,
+      "best_snapshot_id": "01M5Z0X96Y0000000000000063",
+      "iterations": 2,
+      "tokens_spent": 59910,
+      "verdict": {
+        "schema_version": 1,
+        "recommendation": "continue",
+        "meets_minimum": false,
+        "risks": [
+          "A reference cannot be verified without the page numbers only the author has."
+        ],
+        "missing": [
+          "references_verified_or_flagged"
+        ]
+      },
+      "options": [
+        "continue",
+        "rollback"
+      ],
+      "created_at": "2026-10-27T09:41:02Z"
+    },
+    "verdict": {
+      "schema_version": 1,
+      "recommendation": "continue",
+      "meets_minimum": false,
+      "risks": [
+        "A reference cannot be verified without the page numbers only the author has."
+      ],
+      "missing": [
+        "references_verified_or_flagged"
+      ]
+    },
+    "checkpoint_kind": "needs_input",
+    "on_complete": "ask",
+    "user_stop_requested": false,
+    "running": false,
+    "tokens_spent": 28460,
+    "last_error": null,
+    "created_at": "2026-10-26T20:14:03Z",
+    "updated_at": "2026-10-27T09:41:02Z"
+  }
+}

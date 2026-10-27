@@ -1,0 +1,62 @@
+{
+  "summary": "200 - four versions of the methodology section",
+  "description": "History travels by reference: version, hash, word count, status and the patch that produced it. No bodies - a version list of a long section would otherwise be the article itself.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "section_id": "methodology",
+    "versions": [
+      {
+        "section_id": "methodology",
+        "version": 1,
+        "hash": "sha256:d436ee8d560d58632c09f4c5771de98bf4bb77512a696943587ec22d6a0e80f1",
+        "words": 18,
+        "status": "draft",
+        "chars_added": 96,
+        "chars_removed": 0,
+        "patch_id": "patch-writer-one",
+        "entry_id": "entry-3",
+        "created_at": "2026-10-26T21:02:14Z",
+        "q_after": null
+      },
+      {
+        "section_id": "methodology",
+        "version": 2,
+        "hash": "sha256:5a0c1bb4bdb01c73e610221a67449be3c9d142c13858d58b13727579820cb4fc",
+        "words": 52,
+        "status": "draft",
+        "chars_added": 212,
+        "chars_removed": 34,
+        "patch_id": "patch-writer-two",
+        "entry_id": "entry-4",
+        "created_at": "2026-10-27T08:31:52Z",
+        "q_after": 63.0
+      },
+      {
+        "section_id": "methodology",
+        "version": 3,
+        "hash": "sha256:565eef9117d0ce86c918667b0c306a60ff6f99397a37e383e869b7cb0e22a98f",
+        "words": 104,
+        "status": "reviewed",
+        "chars_added": 141,
+        "chars_removed": 22,
+        "patch_id": "patch-writer-two-b",
+        "entry_id": "entry-5",
+        "created_at": "2026-10-27T09:12:07Z",
+        "q_after": 71.0
+      },
+      {
+        "section_id": "methodology",
+        "version": 4,
+        "hash": "sha256:f12e5b5a91ac113abd54c8605421b02e6254d073d9b55a5b4e127515d18bd5ec",
+        "words": 104,
+        "status": "final",
+        "chars_added": 1,
+        "chars_removed": 0,
+        "patch_id": null,
+        "entry_id": "entry-6",
+        "created_at": "2026-10-27T09:41:02Z",
+        "q_after": 78.0
+      }
+    ]
+  }
+}

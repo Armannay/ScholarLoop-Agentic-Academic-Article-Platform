@@ -1,0 +1,14 @@
+{
+  "summary": "409 - the email is already registered",
+  "description": "A conflict, not a validation error: the request was well formed. `context.reason=email_taken` is what the console branches on.",
+  "value": {
+    "error": {
+      "code": "conflict",
+      "message": "an account with email 'ada@example.edu' already exists",
+      "context": {
+        "reason": "email_taken",
+        "field": "email"
+      }
+    }
+  }
+}

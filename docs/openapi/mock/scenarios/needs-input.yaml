@@ -1,0 +1,85 @@
+# Scenario: needs input.
+#
+# The validator cannot verify two references and the researcher is not allowed to invent
+# a locator, so the run pauses in CHECKPOINT with checkpoint_kind=needs_input and
+# action=ASK_USER until a human answers.
+x-scholarloop-scenario:
+  id: needs-input
+  title: Needs user input
+  summary: >-
+    Nothing can move until the user supplies a quote or allows the references to be
+    marked unknown. The run is CHECKPOINT / needs_input with Q=64.
+  story:
+    - 'POST /api/projects/peer-review-2026/runs (brief missing target_words) -> 409 needs_user_input'
+    - 'GET /api/runs/{run_id} -> 200 CHECKPOINT, checkpoint_kind=needs_input, action=ASK_USER'
+    - 'GET /api/runs/{run_id}/digest -> 200 open_issues names the blocking issue'
+    - 'POST /api/runs/{run_id}/decision {"option":"continue","note":"..."} -> 200 EXECUTING'
+  try:
+    - 'Prefer: code=422 on POST /api/runs/{run_id}/decision -> 422 the note is required'
+    - 'Prefer: example=needs_input on a 422 -> 422 needs_input fields'
+
+paths:
+  /api/runs/{run_id}:
+    get:
+      responses:
+        '200':
+          content:
+            application/json:
+              examples:
+                needs_input:
+                  $ref: './examples/scenarios/needs-input/run.json'
+  /api/runs/{run_id}/decision:
+    post:
+      responses:
+        '200':
+          content:
+            application/json:
+              examples:
+                resumed:
+                  $ref: './examples/scenarios/needs-input/decision.response.json'
+        '422':
+          content:
+            application/json:
+              examples:
+                needs_input_answer_missing_note:
+                  $ref: './examples/errors/needs_input.422.json'
+                validation_error:
+                  $ref: './examples/errors/validation_error.422.json'
+  /api/runs/{run_id}/digest:
+    get:
+      responses:
+        '200':
+          content:
+            application/json:
+              examples:
+                needs_input:
+                  $ref: './examples/scenarios/needs-input/digest.json'
+  /api/runs/{run_id}/usage:
+    get:
+      responses:
+        '200':
+          content:
+            application/json:
+              examples:
+                needs_input:
+                  $ref: './examples/scenarios/needs-input/usage.json'
+  /api/runs/{run_id}/article:
+    get:
+      responses:
+        '200':
+          content:
+            application/json:
+              examples:
+                needs_input:
+                  $ref: './examples/scenarios/needs-input/article.json'
+  /api/projects/{project_id}/runs:
+    post:
+      responses:
+        '409':
+          content:
+            application/json:
+              examples:
+                needs_user_input:
+                  $ref: './examples/errors/needs_user_input.409.json'
+                active_run:
+                  $ref: './examples/errors/active_run.409.json'

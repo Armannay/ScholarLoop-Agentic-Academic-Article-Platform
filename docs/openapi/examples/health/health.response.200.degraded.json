@@ -1,0 +1,22 @@
+{
+  "summary": "200 - degraded: a config file failed to load",
+  "description": "The process is alive, so this is still a 200 - but the rubric could not be loaded, so `rubric_loaded` is false, `config_errors` names the file, and the console must disable new runs instead of guessing defaults.",
+  "value": {
+    "status": "degraded",
+    "version": "0.9.0",
+    "contract_version": 1,
+    "env": "local",
+    "policies_loaded": true,
+    "rubric_loaded": false,
+    "providers": {
+      "mock": true,
+      "live_adapters_implemented": [],
+      "accounts_configured": 0,
+      "live_providers_enabled": false,
+      "account_store_ready": false
+    },
+    "config_errors": {
+      "rubric": "config/rubric.yaml: criteria weights sum to 95, not 100"
+    }
+  }
+}

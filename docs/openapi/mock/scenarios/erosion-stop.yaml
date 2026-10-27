@@ -1,0 +1,59 @@
+# Scenario: erosion stop.
+#
+# Iterations 2 and 3 bought fewer than one Q point each, so the plateau and diminishing
+# returns detectors fired: the loop stops itself with STOPPED_EROSION and offers a
+# rollback to the best snapshot (Q=74).
+x-scholarloop-scenario:
+  id: erosion-stop
+  title: Erosion stop
+  summary: >-
+    Q plateaued at 72-74 over four iterations. The run is STOPPED_EROSION; the best
+    snapshot (Q=74) is the rollback target and the ledger keeps every iteration.
+  story:
+    - 'GET /api/runs/{run_id} -> 200 STOPPED_EROSION, reasons [plateau_detected, diminishing_returns]'
+    - 'GET /api/runs/{run_id}/article/snapshots -> 200 best_snapshot_id points at Q=74'
+    - 'POST /api/runs/{run_id}/decision {"option":"rollback"} -> 200 DONE, bodies restored'
+    - 'GET /api/runs/{run_id}/ledger -> 200 the orchestrator rollback entry is appended'
+  try:
+    - 'Prefer: code=409 on POST /api/runs/{run_id}/decision -> 409 invalid_transition'
+    - 'Prefer: example=active_run on POST /api/projects/{project_id}/runs -> 409 active-run'
+
+paths:
+  /api/runs/{run_id}:
+    get:
+      responses:
+        '200':
+          content:
+            application/json:
+              examples:
+                erosion_stop:
+                  $ref: './examples/scenarios/erosion-stop/run.json'
+  /api/runs/{run_id}/decision:
+    post:
+      responses:
+        '200':
+          content:
+            application/json:
+              examples:
+                after_rollback:
+                  $ref: './examples/scenarios/erosion-stop/decision.response.json'
+  /api/runs/{run_id}/article/snapshots:
+    get:
+      responses:
+        '200':
+          content:
+            application/json:
+              examples:
+                erosion_stop:
+                  $ref: './examples/scenarios/erosion-stop/snapshots.json'
+  /api/projects/{project_id}/runs:
+    post:
+      responses:
+        '409':
+          content:
+            application/json:
+              examples:
+                active_run:
+                  $ref: './examples/errors/active_run.409.json'
+                needs_user_input:
+                  $ref: './examples/errors/needs_user_input.409.json'

@@ -1,0 +1,120 @@
+{
+  "summary": "200 - the event log as JSON, the twin of the SSE stream",
+  "description": "Same `RunEvent` objects the stream sends, pageable by `after`. `next_after=null` says the log is exhausted, so a reconnecting client knows to stop asking.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "events": [
+      {
+        "seq": 0,
+        "ts": "2026-10-26T20:14:03Z",
+        "type": "run_created",
+        "state": "INTAKE",
+        "iter": 0,
+        "detail": {
+          "kind": "brief",
+          "project_id": "peer-review-2026",
+          "on_complete": "ask"
+        }
+      },
+      {
+        "seq": 1,
+        "ts": "2026-10-26T20:14:04Z",
+        "type": "state_changed",
+        "state": "PLANNING",
+        "iter": 0,
+        "detail": {
+          "from": "INTAKE",
+          "to": "PLANNING"
+        }
+      },
+      {
+        "seq": 2,
+        "ts": "2026-10-26T20:14:41Z",
+        "type": "plan_accepted",
+        "state": "PLANNING",
+        "iter": 0,
+        "detail": {
+          "plan_version": 1,
+          "tasks": 6
+        }
+      },
+      {
+        "seq": 3,
+        "ts": "2026-10-26T20:14:42Z",
+        "type": "state_changed",
+        "state": "EXECUTING",
+        "iter": 0,
+        "detail": {
+          "from": "PLANNING",
+          "to": "EXECUTING"
+        }
+      },
+      {
+        "seq": 4,
+        "ts": "2026-10-26T20:38:11Z",
+        "type": "task_completed",
+        "state": "EXECUTING",
+        "iter": 0,
+        "detail": {
+          "task_id": "01M5Z0X96Y000000000000006H",
+          "role": "architect",
+          "status": "ok",
+          "section_ids": [
+            "introduction",
+            "related-work"
+          ]
+        }
+      },
+      {
+        "seq": 5,
+        "ts": "2026-10-26T20:52:37Z",
+        "type": "loop_decision",
+        "state": "DECIDING",
+        "iter": 0,
+        "detail": {
+          "action": "CONTINUE",
+          "reasons": [
+            "q_below_min",
+            "sections_incomplete"
+          ],
+          "Q": 54,
+          "q_min": 70
+        }
+      },
+      {
+        "seq": 6,
+        "ts": "2026-10-27T09:41:01Z",
+        "type": "loop_decision",
+        "state": "DECIDING",
+        "iter": 3,
+        "detail": {
+          "action": "OFFER_FINISH",
+          "reasons": [
+            "completion_candidate",
+            "all_gates_pass"
+          ],
+          "Q": 78,
+          "q_min": 70
+        }
+      },
+      {
+        "seq": 7,
+        "ts": "2026-10-27T09:41:02Z",
+        "type": "checkpoint_reached",
+        "state": "CHECKPOINT",
+        "iter": 3,
+        "detail": {
+          "checkpoint_kind": "completion",
+          "action": "OFFER_FINISH",
+          "q": 78,
+          "options": [
+            "finish",
+            "continue",
+            "rollback"
+          ]
+        }
+      }
+    ],
+    "next_after": null
+  }
+}

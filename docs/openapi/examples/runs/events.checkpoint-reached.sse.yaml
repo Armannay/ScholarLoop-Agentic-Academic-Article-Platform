@@ -1,0 +1,6 @@
+summary: "checkpoint_reached - the run is waiting for a human"
+description: "The frame carries the legal answers, so the console can render the buttons from the event itself and needs no second request. The stream stays open: the run settles only when the user decides."
+value: |
+  id: 7
+  event: checkpoint_reached
+  data: {"seq":7,"ts":"2026-10-27T09:41:02Z","type":"checkpoint_reached","state":"CHECKPOINT","iter":3,"detail":{"checkpoint_kind":"completion","action":"OFFER_FINISH","q":78,"best_snapshot_id":"01M5Z0X96Y0000000000000061","options":["finish","continue","rollback"]}}

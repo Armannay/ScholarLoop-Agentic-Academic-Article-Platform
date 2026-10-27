@@ -1,0 +1,13 @@
+{
+  "summary": "404 - run_not_found: no such run, or not yours",
+  "description": "Every /api/runs/{run_id} operation answers this, so a stale link degrades to one screen.",
+  "value": {
+    "error": {
+      "code": "run_not_found",
+      "message": "run 01M5Z0X96Y000000000000005H not found",
+      "context": {
+        "run_id": "01M5Z0X96Y000000000000005H"
+      }
+    }
+  }
+}

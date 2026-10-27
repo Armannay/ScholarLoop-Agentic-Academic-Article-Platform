@@ -1,0 +1,16 @@
+{
+  "summary": "409 - the project already has a live run",
+  "description": "One project, one live run: a double-clicked Start cannot put two agents on the same article. Note the code is run_conflict (409) with context.reason=active_run - the `409 active-run` case in the API brief.",
+  "value": {
+    "error": {
+      "code": "run_conflict",
+      "message": "project 'peer-review-2026' already has a running run '01M5Z0X96Y000000000000005H'; stop it or wait for the checkpoint",
+      "context": {
+        "reason": "active_run",
+        "project_id": "peer-review-2026",
+        "active_run_id": "01M5Z0X96Y000000000000005H",
+        "state": "EXECUTING"
+      }
+    }
+  }
+}

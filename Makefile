@@ -6,7 +6,7 @@ PIP   := $(VENV)/bin/pip
 
 .DEFAULT_GOAL := help
 
-.PHONY: help venv install lint format type test check skill-lint schemas schemas-check migrate migration run backend frontend-install frontend-build frontend-dev dev up down clean
+.PHONY: help venv install lint format type test check skill-lint schemas schemas-check openapi-install openapi-check openapi-mock openapi-client migrate migration run backend frontend-install frontend-build frontend-dev dev up down clean
 
 help: ## show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -44,6 +44,18 @@ schemas: ## export contracts JSON Schemas to docs/schemas/
 
 schemas-check: ## fail if docs/schemas is out of date with the contracts
 	$(PY) -m app.scripts.export_schemas --out docs/schemas --check
+
+openapi-install: ## npm install for docs/openapi (Redocly, Prism, client generator)
+	cd docs/openapi && npm install
+
+openapi-check: ## lint + example validation + typed client for docs/openapi
+	cd docs/openapi && npm run check
+
+openapi-mock: ## Prism mock for docs/openapi (SCENARIO=completion|erosion-stop|needs-input PORT=4010)
+	cd docs/openapi && node mock/server.mjs $(or $(SCENARIO),completion) --port $(or $(PORT),4010)
+
+openapi-client: ## regenerate the typed TS client from docs/openapi/openapi.yaml
+	cd docs/openapi && npm run client
 
 migrate: ## apply alembic migrations to SCHOLARLOOP_DATABASE_URL
 	$(PY) -m alembic upgrade head

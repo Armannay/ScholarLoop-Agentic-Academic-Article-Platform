@@ -1,0 +1,45 @@
+# Prism mock configuration for the ScholarLoop UI spec.
+#
+# Prism 5 removed its `--config` flag, so this file is read by `./server.mjs`, which
+# translates it into the exact Prism CLI invocation (and prints it, so what runs is never
+# a mystery). Everything the mock does is declared here:
+#
+#   npm run mock                 # completion scenario, :4010
+#   npm run mock -- erosion-stop # erosion-stop scenario
+#   npm run mock -- needs-input --port 4011
+#
+# A scenario is an overlay on ../openapi.yaml: it reorders and pins response examples so
+# Prism's static mode serves one coherent story without touching the spec itself.
+
+# --- how Prism is invoked ---------------------------------------------------
+mock:
+  host: 0.0.0.0 # the preview proxy reaches the sandbox over 0.0.0.0, not 127.0.0.1
+  port: 4010
+  dynamic: false # serve the examples, never generate random data
+  errors: false # a request that misses an example still gets an answer, not a 422
+  cors: true
+  verboseLevel: info # trace | debug | info | warn | error | silent
+
+# --- the three scenarios ---------------------------------------------------
+scenarios:
+  completion:
+    spec: ./scenarios/completion.yaml
+    title: Completion checkpoint - all gates pass, the user is asked to finish
+    answers:
+      'GET /api/runs/{run_id}': CHECKPOINT, checkpoint_kind=completion, Q=78
+      'POST /api/runs/{run_id}/decision': DONE after option=finish
+      'POST /api/projects/{project_id}/runs': 202 accepted
+  erosion-stop:
+    spec: ./scenarios/erosion-stop.yaml
+    title: Erosion stop - Q plateaued, the loop stops itself and offers a rollback
+    answers:
+      'GET /api/runs/{run_id}': STOPPED_EROSION, Q stuck at 72-74
+      'POST /api/runs/{run_id}/decision': DONE after option=rollback
+      'GET /api/runs/{run_id}/article/snapshots': best snapshot Q=74 is the rollback target
+  needs-input:
+    spec: ./scenarios/needs-input.yaml
+    title: Needs input - the loop cannot proceed without a human answer
+    answers:
+      'GET /api/runs/{run_id}': CHECKPOINT, checkpoint_kind=needs_input, action=ASK_USER
+      'POST /api/runs/{run_id}/decision': EXECUTING after option=continue with a note
+      'POST /api/projects/{project_id}/runs': 409 needs_user_input (missing brief fields)

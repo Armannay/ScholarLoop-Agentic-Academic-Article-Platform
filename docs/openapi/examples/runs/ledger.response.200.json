@@ -1,0 +1,195 @@
+{
+  "summary": "200 - the append-only change ledger, oldest first",
+  "description": "One entry per action, with the token cost of that action and a `patch_ref` pointer instead of a patch body. The final `orchestrator` entry is the loop recording its own snapshot, which no agent may claim.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "entries": [
+      {
+        "schema_version": 1,
+        "id": "01M5Z0X96Y0000000000000080",
+        "iter": 0,
+        "task_id": "01M5Z0X96Y000000000000006H",
+        "role": "architect",
+        "targets": [
+          "introduction",
+          "related-work"
+        ],
+        "summary": "Outlined nine sections in rubric order and named the gap and the contribution in one sentence each.",
+        "patch_ref": "patch:01M5Z0X96Y000000000000007A",
+        "tokens": {
+          "in": 4200,
+          "out": 1800,
+          "cached": 600
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      {
+        "schema_version": 1,
+        "id": "01M5Z0X96Y0000000000000081",
+        "iter": 0,
+        "task_id": "01M5Z0X96Y000000000000006J",
+        "role": "researcher",
+        "targets": [
+          "related-work"
+        ],
+        "summary": "Collected three source cards with verbatim snippets: two verified, one left unknown rather than guessed.",
+        "patch_ref": null,
+        "tokens": {
+          "in": 6100,
+          "out": 2400,
+          "cached": 900
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      {
+        "schema_version": 1,
+        "id": "01M5Z0X96Y0000000000000082",
+        "iter": 0,
+        "task_id": "01M5Z0X96Y000000000000006K",
+        "role": "writer",
+        "targets": [
+          "introduction",
+          "related-work"
+        ],
+        "summary": "Wrote the introduction and related work against the cards, APA7 in-text markers only.",
+        "patch_ref": "patch:01M5Z0X96Y000000000000007B",
+        "tokens": {
+          "in": 7000,
+          "out": 2600,
+          "cached": 1200
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      {
+        "schema_version": 1,
+        "id": "01M5Z0X96Y0000000000000083",
+        "iter": 1,
+        "task_id": "01M5Z0X96Y000000000000006M",
+        "role": "writer",
+        "targets": [
+          "methodology",
+          "results",
+          "discussion"
+        ],
+        "summary": "Added methodology, results and discussion; the body reached 657 words with no placeholder text.",
+        "patch_ref": "patch:01M5Z0X96Y000000000000007C",
+        "tokens": {
+          "in": 9800,
+          "out": 3600,
+          "cached": 2100
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      {
+        "schema_version": 1,
+        "id": "01M5Z0X96Y0000000000000084",
+        "iter": 2,
+        "task_id": "01M5Z0X96Y000000000000006N",
+        "role": "reviewer",
+        "targets": [
+          "introduction",
+          "related-work",
+          "methodology",
+          "results"
+        ],
+        "summary": "Reviewed every section against its acceptance criteria; one citation could not be resolved to a card.",
+        "patch_ref": null,
+        "tokens": {
+          "in": 5400,
+          "out": 1900,
+          "cached": 400
+        },
+        "issues_opened": [
+          "citation-unverified:src-gopen-1990"
+        ],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      {
+        "schema_version": 1,
+        "id": "01M5Z0X96Y0000000000000085",
+        "iter": 2,
+        "task_id": "01M5Z0X96Y000000000000006P",
+        "role": "validator",
+        "targets": [],
+        "summary": "Validated the assembled article: seven of eight gates pass, the unverified reference is now an open issue.",
+        "patch_ref": null,
+        "tokens": {
+          "in": 3100,
+          "out": 1200,
+          "cached": 0
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      {
+        "schema_version": 1,
+        "id": "01M5Z0X96Y0000000000000086",
+        "iter": 3,
+        "task_id": "01M5Z0X96Y000000000000006M",
+        "role": "writer",
+        "targets": [
+          "discussion",
+          "limitations",
+          "conclusion",
+          "references"
+        ],
+        "summary": "Expanded discussion and limitations and documented the open citation; body now 862 words, all sections final.",
+        "patch_ref": "patch:01M5Z0X96Y000000000000007D",
+        "tokens": {
+          "in": 8500,
+          "out": 3100,
+          "cached": 400
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      {
+        "schema_version": 1,
+        "id": "01M5Z0X96Y0000000000000087",
+        "iter": 3,
+        "task_id": "01M5Z0X96Y000000000000006P",
+        "role": "validator",
+        "targets": [],
+        "summary": "Re-validated the article: all eight gates pass at Q=78 and the citation ratio is 0.75.",
+        "patch_ref": null,
+        "tokens": {
+          "in": 2900,
+          "out": 900,
+          "cached": 0
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      {
+        "schema_version": 1,
+        "id": "01M5Z0X96Y0000000000000088",
+        "iter": 3,
+        "task_id": "01M5Z0X96Y0000000000000088",
+        "role": "orchestrator",
+        "targets": [],
+        "summary": "Froze snapshot iter-3-q78 as the best measured version and paused at the completion checkpoint.",
+        "patch_ref": null,
+        "tokens": {
+          "in": 0,
+          "out": 0,
+          "cached": 0
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      }
+    ]
+  }
+}

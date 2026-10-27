@@ -1,0 +1,17 @@
+{
+  "summary": "409 - conflict: the account would orphan an enabled binding",
+  "description": "The delete is refused, not silently cascaded: `context.roles` names the bindings that would be left without an account, which is exactly the dialog the console shows.",
+  "value": {
+    "error": {
+      "code": "conflict",
+      "message": "account is the only candidate for enabled role 'writer'; pass replacement_account_id or disable_roles=true",
+      "context": {
+        "reason": "orphaned_binding",
+        "account_id": "01M5Z0X96Y0000000000000071",
+        "roles": [
+          "writer"
+        ]
+      }
+    }
+  }
+}

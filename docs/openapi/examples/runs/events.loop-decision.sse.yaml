@@ -1,0 +1,10 @@
+summary: "loop_decision - the controller chose what to do next"
+description: "One frame per completed iteration, with the reason codes and the numbers behind them. `CONTINUE` at Q=54 is the ordinary case; `OFFER_FINISH` is the one that leads to a checkpoint."
+value: |
+  id: 5
+  event: loop_decision
+  data: {"seq":5,"ts":"2026-10-26T20:52:37Z","type":"loop_decision","state":"DECIDING","iter":0,"detail":{"action":"CONTINUE","reasons":["q_below_min","sections_incomplete"],"Q":54,"q_min":70,"gates_failed":3}}
+  
+  id: 6
+  event: loop_decision
+  data: {"seq":6,"ts":"2026-10-27T09:41:01Z","type":"loop_decision","state":"DECIDING","iter":3,"detail":{"action":"OFFER_FINISH","reasons":["completion_candidate","all_gates_pass"],"Q":78,"q_min":70,"gates_failed":0}}

@@ -1,0 +1,13 @@
+{
+  "summary": "404 - no such object for this owner",
+  "description": "Another user's project reads exactly like a missing one. The API never answers 403 for ownership, because that would confirm the id exists.",
+  "value": {
+    "error": {
+      "code": "not_found",
+      "message": "project 'peer-review-2026' not found",
+      "context": {
+        "project_id": "peer-review-2026"
+      }
+    }
+  }
+}

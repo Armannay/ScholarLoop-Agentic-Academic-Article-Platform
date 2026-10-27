@@ -1,0 +1,63 @@
+{
+  "summary": "needs_input scenario - usage at the pause",
+  "description": "Two iterations, planner included; the cap is untouched.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "total": 28460,
+    "agents_total": {
+      "in": 18240,
+      "out": 6220,
+      "cached": 2100,
+      "total": 24460
+    },
+    "planner": {
+      "in": 2600,
+      "out": 1400,
+      "cached": 0,
+      "total": 4000
+    },
+    "by_role": {
+      "architect": {
+        "in": 4200,
+        "out": 1800,
+        "cached": 600,
+        "total": 6000
+      },
+      "researcher": {
+        "in": 6100,
+        "out": 2400,
+        "cached": 900,
+        "total": 8500
+      },
+      "validator": {
+        "in": 3100,
+        "out": 1200,
+        "cached": 0,
+        "total": 4300
+      },
+      "writer": {
+        "in": 7440,
+        "out": 2220,
+        "cached": 600,
+        "total": 9660
+      }
+    },
+    "by_iter": {
+      "0": {
+        "in": 13200,
+        "out": 4600,
+        "cached": 1500,
+        "total": 17800
+      },
+      "1": {
+        "in": 7640,
+        "out": 3020,
+        "cached": 600,
+        "total": 10660
+      }
+    },
+    "token_cap": 800000,
+    "iterations": 2,
+    "max_iterations": 12
+  }
+}

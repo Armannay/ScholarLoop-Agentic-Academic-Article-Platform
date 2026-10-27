@@ -1,0 +1,8 @@
+{
+  "summary": "login request",
+  "description": "The same shape as register, minus the password-length rule.",
+  "value": {
+    "email": "ada@example.edu",
+    "password": "correct-horse-battery"
+  }
+}

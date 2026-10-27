@@ -1,0 +1,29 @@
+{
+  "summary": "200 - diff between methodology v2 and v3",
+  "description": "Character statistics plus a unified diff. `net_chars` is added minus removed, `touched_chars` is the total churn - the same numbers the erosion detectors use, so the console and the loop never disagree about how much changed.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "section_id": "methodology",
+    "from": {
+      "version": 2,
+      "hash": "sha256:5a0c1bb4bdb01c73e610221a67449be3c9d142c13858d58b13727579820cb4fc",
+      "words": 52
+    },
+    "to": {
+      "version": 3,
+      "hash": "sha256:565eef9117d0ce86c918667b0c306a60ff6f99397a37e383e869b7cb0e22a98f",
+      "words": 104
+    },
+    "diff": {
+      "stats": {
+        "chars_added": 141,
+        "chars_removed": 22,
+        "net_chars": 119,
+        "touched_chars": 163
+      },
+      "lines_added": 1,
+      "lines_removed": 1,
+      "unified": "--- methodology@2\n+++ methodology@3\n@@ -1,1 +1,1 @@\n-The study followed a design-science cycle of two semesters.\n+The study followed a design-science cycle of three semesters, with one checklist revision between each phase.\n"
+    }
+  }
+}

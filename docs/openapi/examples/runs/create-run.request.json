@@ -1,0 +1,25 @@
+{
+  "summary": "202 request - a full run from a Brief",
+  "description": "The Brief is the whole requirement set. Intake validates it field by field and answers 409 needs_user_input naming exactly what is missing instead of defaulting it, so a run never starts on an invented audience or word target.",
+  "value": {
+    "brief": {
+      "schema_version": 1,
+      "topic": "Tightening peer review with structured checklists",
+      "article_type": "research",
+      "audience": "CS faculty and graduate reviewers",
+      "language": "en",
+      "target_words": 850,
+      "citation_style": "APA7",
+      "must_include": [
+        "a comparison of checklist and free-form reviews"
+      ],
+      "must_avoid": [
+        "claims about journal acceptance rates"
+      ],
+      "provided_data": []
+    },
+    "on_complete": "ask",
+    "max_wall_seconds": 3600,
+    "wait": false
+  }
+}

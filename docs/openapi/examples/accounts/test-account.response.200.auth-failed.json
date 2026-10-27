@@ -1,0 +1,13 @@
+{
+  "summary": "200 - the provider rejected the key",
+  "description": "The probe itself succeeded, so this is a 200 with `ok=false`: the console shows a 'key rejected' badge on that account instead of an error page.",
+  "value": {
+    "ok": false,
+    "account_id": "01M5Z0X96Y0000000000000071",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "latency_ms": 188,
+    "error_code": "provider_auth_error",
+    "error_message": "401 from provider: invalid x-api-key"
+  }
+}

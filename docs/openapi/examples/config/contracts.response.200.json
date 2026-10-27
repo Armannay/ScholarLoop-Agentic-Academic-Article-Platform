@@ -1,0 +1,33 @@
+{
+  "summary": "200 - the contract registry",
+  "description": "Names come from the same registry `make schemas` exports, so the console can discover the schema endpoint without hard-coding a list.",
+  "value": {
+    "contract_version": 1,
+    "names": [
+      "Account",
+      "AccountPublic",
+      "AgentBinding",
+      "AgentResult",
+      "Brief",
+      "ChangeEntry",
+      "CitationRef",
+      "LLMMessage",
+      "LLMRequest",
+      "LLMResponse",
+      "LoopDecision",
+      "MonthlyBudget",
+      "Patch",
+      "PatchOp",
+      "Plan",
+      "QualityIssue",
+      "QualityReport",
+      "SectionState",
+      "SourceCard",
+      "SystemBlock",
+      "Task",
+      "TokenUsage",
+      "Verdict"
+    ],
+    "schema_url_template": "/api/contracts/{name}/schema"
+  }
+}

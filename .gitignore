@@ -42,3 +42,12 @@ logs/
 .idea/
 .vscode/
 .DS_Store
+
+# --- docs/openapi build outputs (regenerate with `npm run client` in docs/openapi) ---
+# The `runs/` rule above means local runtime state. The OpenAPI examples of the
+# run endpoints are a deliverable, so that directory is re-included explicitly.
+!docs/openapi/examples/runs/
+docs/openapi/generated/
+docs/openapi/.scratch/
+# composed Prism documents: `node mock/server.mjs <scenario>` writes one per scenario
+docs/openapi/.mock.*.openapi.yaml

@@ -1,0 +1,18 @@
+{
+  "summary": "202 request - the planner-free quick edit",
+  "description": "One section, one instruction, no Plan and no loop: the edit still becomes a real task, goes through the article store and lands in the ledger, so it is auditable exactly like planned work.",
+  "value": {
+    "quick_edit": {
+      "section_id": "related-work",
+      "instructions": "Add the two 2024 replication studies that disagree with the checklist effect, and say plainly that they disagree.",
+      "role": "writer",
+      "acceptance": [
+        "Both studies are cited from an existing source card",
+        "The disagreement is stated, not smoothed over"
+      ],
+      "token_budget": 4000
+    },
+    "on_complete": "finish",
+    "wait": true
+  }
+}

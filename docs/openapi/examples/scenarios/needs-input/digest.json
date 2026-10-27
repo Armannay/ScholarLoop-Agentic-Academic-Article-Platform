@@ -1,0 +1,16 @@
+{
+  "summary": "needs_input scenario - the digest names the blocking issue",
+  "description": "`open_issues` is what the console shows next to the dialog, so the ask is concrete.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "markdown": "# Run digest - peer-review-2026\n\n## Blocking issue\n- references_verified_or_flagged: Gopen & Swan (1990) has no DOI, and the quote on p. 552 could not be checked. Need the page numbers or permission to mark it unknown.\n",
+    "tokens": 410,
+    "max_tokens": 2000,
+    "compacted": false,
+    "latest_q": 64,
+    "open_issues": [
+      "references_verified_or_flagged",
+      "citation-unverified:src-gopen-1990"
+    ]
+  }
+}

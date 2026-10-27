@@ -1,0 +1,60 @@
+# Scenario: completion checkpoint.
+#
+# The base spec already tells this story (Q=78, all eight gates pass, the run pauses at
+# the completion checkpoint), so the overlay only pins the example order Prism's static
+# mode uses and adds the scenario's follow-up payloads.
+x-scholarloop-scenario:
+  id: completion
+  title: Completion checkpoint
+  summary: >-
+    The run reached Q=78 with every hard gate passing and is waiting for the user to
+    accept the article (or continue with more budget).
+  story:
+    - 'POST /api/auth/login -> 200 (any email/password: the mock never checks)'
+    - 'POST /api/projects/peer-review-2026/runs -> 202 (run starts in the background)'
+    - 'GET /api/runs/{run_id} -> 200 CHECKPOINT, checkpoint_kind=completion, Q=78'
+    - 'GET /api/runs/{run_id}/quality -> 200 eight gates pass, Q=78'
+    - 'POST /api/runs/{run_id}/decision {"option":"finish"} -> 200 DONE'
+  try:
+    - 'Prefer: code=409 on POST /api/projects/{project_id}/runs -> 409 active-run conflict'
+    - 'Prefer: example=needs_user_input on POST /api/projects/{project_id}/runs -> 409 intake'
+
+paths:
+  /api/runs/{run_id}:
+    get:
+      responses:
+        '200':
+          content:
+            application/json:
+              examples:
+                completion_checkpoint:
+                  $ref: './examples/runs/get-run.response.200.checkpoint.json'
+  /api/runs/{run_id}/decision:
+    post:
+      responses:
+        '200':
+          content:
+            application/json:
+              examples:
+                finished:
+                  $ref: './examples/scenarios/completion/decision.response.json'
+  /api/runs/{run_id}/digest:
+    get:
+      responses:
+        '200':
+          content:
+            application/json:
+              examples:
+                completion_checkpoint:
+                  $ref: './examples/scenarios/completion/digest.json'
+  /api/projects/{project_id}/runs:
+    post:
+      responses:
+        '409':
+          content:
+            application/json:
+              examples:
+                active_run:
+                  $ref: './examples/errors/active_run.409.json'
+                needs_user_input:
+                  $ref: './examples/errors/needs_user_input.409.json'

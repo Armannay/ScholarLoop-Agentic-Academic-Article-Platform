@@ -1,0 +1,33 @@
+{
+  "summary": "200 - the caller's projects, newest activity first",
+  "description": "Project metadata is derived from run records: there is no Project table in CONTRACTS v1, so `run_count` and `latest_*` are computed at read time.",
+  "value": {
+    "projects": [
+      {
+        "id": "peer-review-2026",
+        "name": "Peer review 2026",
+        "description": "A study of structured review checklists in a CS department.",
+        "run_count": 4,
+        "latest_run_id": "01M5Z0X96Y000000000000005H",
+        "latest_state": "CHECKPOINT",
+        "latest_q": 78,
+        "best_q": 78.0,
+        "created_at": "2026-10-24T11:20:00Z",
+        "updated_at": "2026-10-27T09:41:02Z"
+      },
+      {
+        "id": "lit-review-agents",
+        "name": "Agents in systematic reviews",
+        "description": null,
+        "run_count": 1,
+        "latest_run_id": "01M5Z0X96Y000000000000005J",
+        "latest_state": "STOPPED_BUDGET",
+        "latest_q": 66,
+        "best_q": 66.0,
+        "created_at": "2026-10-02T15:41:09Z",
+        "updated_at": "2026-10-03T09:12:44Z"
+      }
+    ],
+    "total": 2
+  }
+}

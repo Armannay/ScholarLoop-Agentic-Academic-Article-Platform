@@ -1,0 +1,9 @@
+{
+  "summary": "200 request - buy two more iterations",
+  "description": "`extra_tokens` and `extra_iterations` extend the caps the loop is measured against; the run resumes in REPLANNING and `usage.token_cap` grows by the grant.",
+  "value": {
+    "option": "add_budget",
+    "extra_tokens": 200000,
+    "extra_iterations": 2
+  }
+}

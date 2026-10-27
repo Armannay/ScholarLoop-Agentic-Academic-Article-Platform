@@ -1,0 +1,8 @@
+{
+  "summary": "restore request - roll back to the best snapshot",
+  "description": "`dry_run=true` reports what would change without writing a new version.",
+  "value": {
+    "snapshot_id": "01M5Z0X96Y0000000000000061",
+    "dry_run": false
+  }
+}

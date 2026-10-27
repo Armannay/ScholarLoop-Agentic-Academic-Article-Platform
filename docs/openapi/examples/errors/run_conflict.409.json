@@ -1,0 +1,15 @@
+{
+  "summary": "409 - run_conflict: the option is illegal in this state",
+  "description": "The run is executing, so no decision applies yet. `context.reason=invalid_transition` and the current state let the console explain the button instead of just failing.",
+  "value": {
+    "error": {
+      "code": "run_conflict",
+      "message": "run is EXECUTING; decisions apply at checkpoints/stops",
+      "context": {
+        "reason": "invalid_transition",
+        "run_id": "01M5Z0X96Y000000000000005H",
+        "state": "EXECUTING"
+      }
+    }
+  }
+}

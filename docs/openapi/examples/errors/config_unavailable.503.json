@@ -1,0 +1,14 @@
+{
+  "summary": "503 - configuration did not load",
+  "description": "Boot succeeds even when a config file is broken, so the process can tell you *why* instead of refusing to start. Health says which file; this says the operation cannot run.",
+  "value": {
+    "error": {
+      "code": "config_error",
+      "message": "policies unavailable: config/policies.yaml failed validation",
+      "context": {
+        "file": "config/policies.yaml",
+        "stage": "startup"
+      }
+    }
+  }
+}

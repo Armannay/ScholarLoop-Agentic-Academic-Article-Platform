@@ -1,0 +1,86 @@
+{
+  "summary": "200 - four snapshots, newest first",
+  "description": "`best_snapshot_id` is the same pointer the run and the rollback option use, so 'go back to the best version' and 'rollback' are the same action.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "best_snapshot_id": "01M5Z0X96Y0000000000000061",
+    "snapshots": [
+      {
+        "id": "01M5Z0X96Y0000000000000061",
+        "label": "iter-3-q78",
+        "q": 78.0,
+        "iter": 3,
+        "created_at": "2026-10-27T09:41:02Z",
+        "section_ids": [
+          "abstract",
+          "introduction",
+          "related-work",
+          "methodology",
+          "results",
+          "discussion",
+          "limitations",
+          "conclusion",
+          "references"
+        ],
+        "total_words": 862
+      },
+      {
+        "id": "01M5Z0X96Y0000000000000064",
+        "label": "iter-2-q71",
+        "q": 71.0,
+        "iter": 2,
+        "created_at": "2026-10-27T08:58:20Z",
+        "section_ids": [
+          "abstract",
+          "introduction",
+          "related-work",
+          "methodology",
+          "results",
+          "discussion",
+          "limitations",
+          "conclusion",
+          "references"
+        ],
+        "total_words": 778
+      },
+      {
+        "id": "01M5Z0X96Y0000000000000063",
+        "label": "iter-1-q63",
+        "q": 63.0,
+        "iter": 1,
+        "created_at": "2026-10-26T22:40:11Z",
+        "section_ids": [
+          "abstract",
+          "introduction",
+          "related-work",
+          "methodology",
+          "results",
+          "discussion",
+          "limitations",
+          "conclusion",
+          "references"
+        ],
+        "total_words": 657
+      },
+      {
+        "id": "01M5Z0X96Y0000000000000062",
+        "label": "iter-0-q54",
+        "q": 54.0,
+        "iter": 0,
+        "created_at": "2026-10-26T20:52:37Z",
+        "section_ids": [
+          "abstract",
+          "introduction",
+          "related-work",
+          "methodology",
+          "results",
+          "discussion",
+          "limitations",
+          "conclusion",
+          "references"
+        ],
+        "total_words": 474
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "summary": "200 - the delete and its explicit cascade",
+  "description": "Deleting the account that the writer binding depended on: the binding got the replacement account, the reviewer binding simply dropped it. Nothing was disabled, so `disabled_roles` is empty - the response says exactly what happened instead of leaving the client to guess.",
+  "value": {
+    "deleted": true,
+    "account_id": "01M5Z0X96Y0000000000000071",
+    "disabled_roles": [],
+    "replaced_in": [
+      "writer"
+    ],
+    "removed_from": [
+      "reviewer"
+    ]
+  }
+}

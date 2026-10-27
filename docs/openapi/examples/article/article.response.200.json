@@ -1,0 +1,211 @@
+{
+  "summary": "200 - the assembled article with section bodies and sources",
+  "description": "Markdown, the per-section states with their exact text, and every source card. Section `words` and `hash` are computed from the text shown, so the fixture is internally consistent - and the eight research sections are all present, which is what the required_sections_present gate measures.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "markdown": "# Tightening peer review with structured checklists\n\n## Abstract\n\nPeer review is the mechanism by which scholarly venues decide what counts as knowledge, yet reviewers receive little more than a form and a deadline. This article reports a design-science study of structured review checklists in a computer-science department. Over one semester we observed 41 reviews written with a checklist derived from the venue's own review criteria and compared them with 38 reviews written on the department's previous free-form template. Checklist reviews named more specific evidence, addressed the paper's method in greater depth, and produced recommendations that authors described as easier to act on, without increasing review time per paper. We argue that the gain comes from the checklist's demand for evidence rather than from its length, and we give the instrument and the coding scheme so that other departments can repeat the study. We close with the limits of a single-department design and with the two questions the data cannot answer: whether the effect survives a second semester, and whether it transfers to venues where reviewers are not also teachers of the authors.\n\n## Introduction\n\nPeer review is the load-bearing wall of scholarly publishing: everything else in the research record is trusted because reviewers were asked to look at it first (Braun & Clarke, 2006). The instrument reviewers are given, however, has changed remarkably little. Most venues still hand over a text box and a score, which makes the quality of the resulting report depend on the individual reviewer's habits rather than on the venue's expectations. This article asks a narrow, practical question: does a structured checklist change what a reviewer writes, and if so, how? We treat the checklist as an instrument to be evaluated rather than a policy to be announced, and we report both the design of the instrument and the evidence gathered when it was used.\n\n## Related Work\n\nChecklists have a long history in safety-critical work, where they were adopted after it became clear that experts forget routine steps under load (Gopen & Swan, 1990). Their migration into peer review has been slower and more contested. Reviewers report that forms fragment a judgement that ought to be holistic, while editors report that free-form reports are hard to compare across papers. Studies of review quality have mostly measured satisfaction or recommendation consistency rather than the evidence a report cites, which is the gap this study addresses. We therefore coded reports for the presence of evidence, the depth of methodological comment, and the actionability of the revision request.\n\n## Methodology\n\nThe study followed a design-science cycle of three semesters. In the first semester we collected the department's review form and the venue's published criteria, and derived a twelve-item checklist with one item per criterion. In the second semester the checklist was used for every review in two courses; reviewers could ignore items but had to state why. In the third semester we coded 41 checklist reviews and 38 free-form reviews with the same scheme, by two coders who were blind to condition. Coding units were sentences; agreement was measured on a 20 percent sample and disagreements were resolved by discussion rather than by majority.\n\n## Results\n\nChecklist reviews contained more evidence sentences per report (median 6 versus 3) and more methodological comments (median 4 versus 2). Review time per paper was unchanged within noise, which contradicts the common prediction that a form costs reviewers time. Authors rated checklist reports as more actionable on a five-point scale, and the effect held when we controlled for reviewer seniority. The one item reviewers most often skipped was the one about statistical reporting, which we read as a signal about reviewer expertise rather than about the instrument.\n\n## Discussion\n\nThe pattern in the data is consistent with the checklist doing what instruments are supposed to do: it makes an expectation explicit, so a reviewer who would otherwise write a general impression is prompted for a specific one. It does not turn a weak reviewer into a strong one, and it does not replace editorial judgement. We see the result as evidence for instrument design rather than for form-filling, and we would resist the temptation to lengthen the instrument in response; the gain in our data came from the demand for evidence, not from the number of boxes.\n\n## Limitations\n\nThe study is single-department and observational to the extent that reviewers chose whether to engage with the checklist. Coding was blind but the coders were graduate students in the same department, and the sample is small enough that the medians should be read as describing this population rather than as estimates of a universal effect.\n\n## Conclusion\n\nA short checklist derived from a venue's own criteria changed what reviewers wrote without costing them time. The instrument and the coding scheme are published with this article so that the study can be repeated, and we suggest that venues evaluate their review forms the way they evaluate their submissions: with evidence rather than with preference.\n\n## References\n\nBraun, V., & Clarke, V. (2006). Using thematic analysis in psychology. Qualitative Research in Psychology, 3(2), 77-101.\n\nGopen, G. D., & Swan, J. A. (1990). The science of scientific writing. American Scientist, 78(6), 550-558.\n\nKitchenham, B., & Charters, S. (2007). Guidelines for performing systematic literature reviews in software engineering (EBSE Technical Report EBSE-2007-01). Keele University.\n",
+    "body_words": 862,
+    "words_by_section": {
+      "abstract": 174,
+      "introduction": 125,
+      "related-work": 108,
+      "methodology": 104,
+      "results": 87,
+      "discussion": 98,
+      "limitations": 55,
+      "conclusion": 56,
+      "references": 55
+    },
+    "sections": [
+      {
+        "schema_version": 1,
+        "id": "abstract",
+        "title": "Abstract",
+        "order": 0,
+        "status": "final",
+        "words": 174,
+        "version": 3,
+        "hash": "sha256:3a08090b61801bd7751be1d3e6f5906b045dd6392567d39ae5972a1890019203",
+        "citations": [],
+        "open_issues": [],
+        "text": "Peer review is the mechanism by which scholarly venues decide what counts as knowledge, yet reviewers receive little more than a form and a deadline. This article reports a design-science study of structured review checklists in a computer-science department. Over one semester we observed 41 reviews written with a checklist derived from the venue's own review criteria and compared them with 38 reviews written on the department's previous free-form template. Checklist reviews named more specific evidence, addressed the paper's method in greater depth, and produced recommendations that authors described as easier to act on, without increasing review time per paper. We argue that the gain comes from the checklist's demand for evidence rather than from its length, and we give the instrument and the coding scheme so that other departments can repeat the study. We close with the limits of a single-department design and with the two questions the data cannot answer: whether the effect survives a second semester, and whether it transfers to venues where reviewers are not also teachers of the authors."
+      },
+      {
+        "schema_version": 1,
+        "id": "introduction",
+        "title": "Introduction",
+        "order": 1,
+        "status": "final",
+        "words": 125,
+        "version": 2,
+        "hash": "sha256:0d16a6babdd5662ceebef23edda495e1a4be08a803d947035b69fe2391b071be",
+        "citations": [
+          {
+            "key": "(Braun & Clarke, 2006)",
+            "source_id": "src-braun-2006"
+          }
+        ],
+        "open_issues": [],
+        "text": "Peer review is the load-bearing wall of scholarly publishing: everything else in the research record is trusted because reviewers were asked to look at it first (Braun & Clarke, 2006). The instrument reviewers are given, however, has changed remarkably little. Most venues still hand over a text box and a score, which makes the quality of the resulting report depend on the individual reviewer's habits rather than on the venue's expectations. This article asks a narrow, practical question: does a structured checklist change what a reviewer writes, and if so, how? We treat the checklist as an instrument to be evaluated rather than a policy to be announced, and we report both the design of the instrument and the evidence gathered when it was used."
+      },
+      {
+        "schema_version": 1,
+        "id": "related-work",
+        "title": "Related Work",
+        "order": 2,
+        "status": "final",
+        "words": 108,
+        "version": 3,
+        "hash": "sha256:27a55c941a46f77a8bd27e23cea90eae6e2ae2cfe8952a1e1bf82441be346888",
+        "citations": [
+          {
+            "key": "(Gopen & Swan, 1990)",
+            "source_id": "src-gopen-1990"
+          }
+        ],
+        "open_issues": [],
+        "text": "Checklists have a long history in safety-critical work, where they were adopted after it became clear that experts forget routine steps under load (Gopen & Swan, 1990). Their migration into peer review has been slower and more contested. Reviewers report that forms fragment a judgement that ought to be holistic, while editors report that free-form reports are hard to compare across papers. Studies of review quality have mostly measured satisfaction or recommendation consistency rather than the evidence a report cites, which is the gap this study addresses. We therefore coded reports for the presence of evidence, the depth of methodological comment, and the actionability of the revision request."
+      },
+      {
+        "schema_version": 1,
+        "id": "methodology",
+        "title": "Methodology",
+        "order": 3,
+        "status": "final",
+        "words": 104,
+        "version": 4,
+        "hash": "sha256:565eef9117d0ce86c918667b0c306a60ff6f99397a37e383e869b7cb0e22a98f",
+        "citations": [],
+        "open_issues": [],
+        "text": "The study followed a design-science cycle of three semesters. In the first semester we collected the department's review form and the venue's published criteria, and derived a twelve-item checklist with one item per criterion. In the second semester the checklist was used for every review in two courses; reviewers could ignore items but had to state why. In the third semester we coded 41 checklist reviews and 38 free-form reviews with the same scheme, by two coders who were blind to condition. Coding units were sentences; agreement was measured on a 20 percent sample and disagreements were resolved by discussion rather than by majority."
+      },
+      {
+        "schema_version": 1,
+        "id": "results",
+        "title": "Results",
+        "order": 4,
+        "status": "final",
+        "words": 87,
+        "version": 3,
+        "hash": "sha256:21e028a327970a3d97d4451d3985778f30ff4f5d2c0b257f20a38f68642f64a1",
+        "citations": [],
+        "open_issues": [],
+        "text": "Checklist reviews contained more evidence sentences per report (median 6 versus 3) and more methodological comments (median 4 versus 2). Review time per paper was unchanged within noise, which contradicts the common prediction that a form costs reviewers time. Authors rated checklist reports as more actionable on a five-point scale, and the effect held when we controlled for reviewer seniority. The one item reviewers most often skipped was the one about statistical reporting, which we read as a signal about reviewer expertise rather than about the instrument."
+      },
+      {
+        "schema_version": 1,
+        "id": "discussion",
+        "title": "Discussion",
+        "order": 5,
+        "status": "final",
+        "words": 98,
+        "version": 2,
+        "hash": "sha256:a05a077005c225a8dfdbc391c12a9f4f976f4aa8ee22d14a71478f65b031a1d7",
+        "citations": [],
+        "open_issues": [],
+        "text": "The pattern in the data is consistent with the checklist doing what instruments are supposed to do: it makes an expectation explicit, so a reviewer who would otherwise write a general impression is prompted for a specific one. It does not turn a weak reviewer into a strong one, and it does not replace editorial judgement. We see the result as evidence for instrument design rather than for form-filling, and we would resist the temptation to lengthen the instrument in response; the gain in our data came from the demand for evidence, not from the number of boxes."
+      },
+      {
+        "schema_version": 1,
+        "id": "limitations",
+        "title": "Limitations",
+        "order": 6,
+        "status": "final",
+        "words": 55,
+        "version": 1,
+        "hash": "sha256:9e178e01a5b673ae5bb7823a378db15de1962acaea50bcb5246e455edebf6795",
+        "citations": [],
+        "open_issues": [],
+        "text": "The study is single-department and observational to the extent that reviewers chose whether to engage with the checklist. Coding was blind but the coders were graduate students in the same department, and the sample is small enough that the medians should be read as describing this population rather than as estimates of a universal effect."
+      },
+      {
+        "schema_version": 1,
+        "id": "conclusion",
+        "title": "Conclusion",
+        "order": 7,
+        "status": "final",
+        "words": 56,
+        "version": 2,
+        "hash": "sha256:aea51b9c7b5a474655725587ee894c4e9a94fc5d4213d9a8d4b185e15421ea0d",
+        "citations": [],
+        "open_issues": [],
+        "text": "A short checklist derived from a venue's own criteria changed what reviewers wrote without costing them time. The instrument and the coding scheme are published with this article so that the study can be repeated, and we suggest that venues evaluate their review forms the way they evaluate their submissions: with evidence rather than with preference."
+      },
+      {
+        "schema_version": 1,
+        "id": "references",
+        "title": "References",
+        "order": 8,
+        "status": "reviewed",
+        "words": 55,
+        "version": 2,
+        "hash": "sha256:e8ed38dc70996498607da1acd7f849462156ddfbeed19becb4eaeb30ef6b4d00",
+        "citations": [
+          {
+            "key": "(Braun & Clarke, 2006)",
+            "source_id": "src-braun-2006"
+          },
+          {
+            "key": "(Gopen & Swan, 1990)",
+            "source_id": "src-gopen-1990"
+          },
+          {
+            "key": "(Kitchenham & Charters, 2007)",
+            "source_id": "src-kitchenham-2007"
+          }
+        ],
+        "open_issues": [
+          "citation-unverified:src-gopen-1990"
+        ],
+        "text": "Braun, V., & Clarke, V. (2006). Using thematic analysis in psychology. Qualitative Research in Psychology, 3(2), 77-101.\n\nGopen, G. D., & Swan, J. A. (1990). The science of scientific writing. American Scientist, 78(6), 550-558.\n\nKitchenham, B., & Charters, S. (2007). Guidelines for performing systematic literature reviews in software engineering (EBSE Technical Report EBSE-2007-01). Keele University."
+      }
+    ],
+    "sources": [
+      {
+        "schema_version": 1,
+        "id": "src-braun-2006",
+        "title": "Using thematic analysis in psychology",
+        "authors": [
+          "Braun, V.",
+          "Clarke, V."
+        ],
+        "year": 2006,
+        "venue": "Qualitative Research in Psychology",
+        "doi": "10.1191/1478088706qp063oa",
+        "url": "https://doi.org/10.1191/1478088706qp063oa",
+        "snippet": "Thematic analysis is a method for identifying, analysing and reporting patterns (themes) within data.",
+        "verification": "verified"
+      },
+      {
+        "schema_version": 1,
+        "id": "src-kitchenham-2007",
+        "title": "Guidelines for performing systematic literature reviews in software engineering",
+        "authors": [
+          "Kitchenham, B.",
+          "Charters, S."
+        ],
+        "year": 2007,
+        "venue": "EBSE Technical Report EBSE-2007-01, Keele University",
+        "doi": null,
+        "url": "https://www.elsevier.com/__data/promis_misc/525444systematicreviewsguide.pdf",
+        "snippet": "A systematic literature review is a means of evaluating and interpreting all available research relevant to a particular research question.",
+        "verification": "verified"
+      },
+      {
+        "schema_version": 1,
+        "id": "src-gopen-1990",
+        "title": "The science of scientific writing",
+        "authors": [
+          "Gopen, G. D.",
+          "Swan, J. A."
+        ],
+        "year": 1990,
+        "venue": "American Scientist",
+        "doi": null,
+        "url": null,
+        "snippet": "Readers expect the stress position of a sentence to carry the new information the writer wants them to remember.",
+        "verification": "unknown"
+      }
+    ]
+  }
+}
