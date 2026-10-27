@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import threading
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -43,7 +44,7 @@ from typing import Any, Final, Protocol, runtime_checkable
 
 from app.agents.context import AgentRunState, RunState
 from app.article.assemble import assemble, section_from
-from app.article.patch import PatchRejected, StalePatch
+from app.article.patch import PatchRejected, StalePatch, diff_texts
 from app.article.store import (
     ArticleStore,
     InMemoryStorage,
@@ -59,10 +60,12 @@ from app.contracts.ledger import ChangeEntry, TokenUsage
 from app.contracts.loop import LoopDecision
 from app.contracts.plan import Plan
 from app.contracts.quality import QualityReport
+from app.contracts.section import EMPTY_SECTION_HASH
 from app.contracts.task import Task
 from app.contracts.verdict import Verdict
 from app.core.clock import utc_now
-from app.core.errors import ScholarLoopError
+from app.core.errors import NotFoundError, ScholarLoopError
+from app.core.hashing import content_hash
 from app.core.ids import new_ulid
 from app.core.logging import get_logger
 from app.core.policies import DEFAULT_POLICIES, Policies
@@ -89,6 +92,7 @@ from app.orchestrator.persistence import (
     InMemoryRunStore,
     RunRecord,
     RunStore,
+    RunStoreError,
     SectionDump,
     SnapshotDump,
     SnapshotSectionDump,
@@ -324,6 +328,9 @@ class Orchestrator:
         self._runtimes: dict[str, _Runtime] = {}
         self._run_locks: dict[str, asyncio.Lock] = {}
         self._planner_lock = asyncio.Lock()
+        # Serialises the one-project-one-live-run check with the record's first
+        # persist, so two concurrent create_run calls cannot both win.
+        self._create_lock = threading.Lock()
 
     # -- introspection ------------------------------------------------------
     @property
@@ -354,6 +361,33 @@ class Orchestrator:
         return [event for event in record.events if event.seq > after_seq]
 
     # -- creation -------------------------------------------------------------
+    def _live_run_for(self, project_id: str, owner_id: str | None) -> RunRecord | None:
+        """The live run of this (owner, project) pair, if one exists.
+
+        Live means "still able to do work against the article": a running
+        state, or ``CHECKPOINT`` (paused for a user decision, resumable).
+        ``STOPPED_*`` and ``DONE`` are not live - they ended, and reviving
+        one is an explicit decision, never a fresh run.
+        """
+        for run_id in self._store.list_ids():
+            try:
+                record = self._store.get(run_id)
+            except RunStoreError:
+                # One corrupt record must not block every other project's
+                # intake; it cannot execute either, so it is not live.
+                logger.warning(
+                    "skipping unreadable run record during guard scan",
+                    extra={"run_id": run_id},
+                )
+                continue
+            if record is None:
+                continue
+            if record.project_id != project_id or record.owner_id != owner_id:
+                continue
+            if record.state in RUNNING_STATES or record.state is RunStateName.CHECKPOINT:
+                return record
+        return None
+
     def create_run(
         self,
         project_id: str,
@@ -365,35 +399,52 @@ class Orchestrator:
     ) -> RunRecord:
         """Intake-validate and persist a new run in ``INTAKE``.
 
+        One project, one live run (the OpenAPI ``active_run`` contract): a
+        project whose run is still running or paused at a checkpoint refuses
+        a second run with ``run_conflict`` / ``context.reason=active_run``,
+        so a double-clicked button never puts two agents on the same article.
+
         Raises:
             IntakeNeedsInput: the payload is missing something only the user
                 can supply; ``exc.result.missing_fields`` names the fields.
+            RunConflict: the owner-scope project already has a live run.
         """
         result = validate_payload(payload, rubric=self._rubric)
         if not result.ok:
             raise IntakeNeedsInput(result)
-        now = self._clock()
-        record = RunRecord(
-            id=self._id_factory(),
-            project_id=project_id,
-            owner_id=owner_id,
-            kind=result.kind,
-            brief=result.brief,
-            on_complete=on_complete,
-            max_wall_seconds=max_wall_seconds,
-            created_at=now,
-            updated_at=now,
-        )
-        if result.kind is IntakeKind.QUICK_EDIT:
-            assert result.quick_edit is not None
-            task = build_quick_edit_task(result.quick_edit, id_factory=self._id_factory)
-            record.quick_edit_task = task
-            record.plan = Plan(version=1, goal="Quick edit (planner-free)", tasks=[task])
-        self._machine.emit(
-            record,
-            "run_created",
-            detail={"kind": result.kind.value, "project_id": project_id},
-        )
+        with self._create_lock:
+            live = self._live_run_for(project_id, owner_id)
+            if live is not None:
+                raise RunConflict(
+                    f"project '{project_id}' already has a running run '{live.id}'; "
+                    "stop it or wait for the checkpoint",
+                    reason="active_run",
+                    project_id=project_id,
+                    active_run_id=live.id,
+                    state=live.state.value,
+                )
+            now = self._clock()
+            record = RunRecord(
+                id=self._id_factory(),
+                project_id=project_id,
+                owner_id=owner_id,
+                kind=result.kind,
+                brief=result.brief,
+                on_complete=on_complete,
+                max_wall_seconds=max_wall_seconds,
+                created_at=now,
+                updated_at=now,
+            )
+            if result.kind is IntakeKind.QUICK_EDIT:
+                assert result.quick_edit is not None
+                task = build_quick_edit_task(result.quick_edit, id_factory=self._id_factory)
+                record.quick_edit_task = task
+                record.plan = Plan(version=1, goal="Quick edit (planner-free)", tasks=[task])
+            self._machine.emit(
+                record,
+                "run_created",
+                detail={"kind": result.kind.value, "project_id": project_id},
+            )
         return record
 
     # -- runtime (de)hydration --------------------------------------------------
@@ -1280,16 +1331,27 @@ class Orchestrator:
     ) -> RunRecord:
         """Apply a checkpoint/stop choice. Caller re-runs the run afterwards."""
         if self.is_running(run_id):
-            raise RunConflict("run is executing; stop it before deciding", run_id=run_id)
+            raise RunConflict(
+                "run is executing; stop it before deciding",
+                run_id=run_id,
+                reason="invalid_transition",
+            )
         lock = self._run_locks.setdefault(run_id, asyncio.Lock())
         async with lock:
             record = self.get_record(run_id, owner_id=owner_id)
             if record.state is RunStateName.DONE:
-                raise RunConflict("run is done; no decision applies", run_id=run_id)
+                raise RunConflict(
+                    "run is done; no decision applies",
+                    run_id=run_id,
+                    reason="invalid_transition",
+                    state=record.state.value,
+                )
             if record.state in RUNNING_STATES:
                 raise RunConflict(
                     f"run is {record.state.value}; decisions apply at checkpoints/stops",
                     run_id=run_id,
+                    reason="invalid_transition",
+                    state=record.state.value,
                 )
             runtime = self._runtime_for(record)
             option = decision.option
@@ -1297,7 +1359,11 @@ class Orchestrator:
 
             if option is StopOption.ROLLBACK:
                 if record.best_snapshot_id is None:
-                    raise RunConflict("no best snapshot to roll back to", run_id=run_id)
+                    raise RunConflict(
+                        "no best snapshot to roll back to",
+                        run_id=run_id,
+                        reason="no_best_snapshot",
+                    )
                 await runtime.article.restore(record.best_snapshot_id)
                 self._machine.emit(record, "rollback_applied", detail=detail, save=False)
                 await self._transition(
@@ -1315,10 +1381,12 @@ class Orchestrator:
                 decision.extra_tokens or decision.extra_iterations
             ):
                 raise RunConflict(
-                    "add_budget needs extra_tokens or extra_iterations", run_id=run_id
+                    "add_budget needs extra_tokens or extra_iterations",
+                    run_id=run_id,
+                    reason="missing_budget_extension",
                 )
             if option is StopOption.EDIT_GOALS and not decision.new_goal:
-                raise RunConflict("edit_goals needs new_goal", run_id=run_id)
+                raise RunConflict("edit_goals needs new_goal", run_id=run_id, reason="missing_goal")
 
             if decision.extra_tokens:
                 record.extra_token_budget += decision.extra_tokens
@@ -1420,6 +1488,259 @@ class Orchestrator:
             "token_cap": self._policies.run_token_cap + record.extra_token_budget,
             "iterations": record.iter,
             "max_iterations": self._policies.max_iterations + record.extra_iterations,
+        }
+
+    # -- read models for the API (Step 9b item 6, the console views) -------------
+    def events_page(
+        self, run_id: str, *, after: int = -1, limit: int = 200, owner_id: str | None = None
+    ) -> dict[str, Any]:
+        """Persisted events as a JSON page - the SSE log's offline twin.
+
+        ``next_after`` is the cursor to pass as ``after`` on the next call, or
+        ``None`` when the log is exhausted (fewer than ``limit`` events left).
+        """
+        record = self.get_record(run_id, owner_id=owner_id)
+        events = [event for event in record.events if event.seq > after]
+        page = events[:limit]
+        next_after = page[-1].seq if page and len(events) > limit else None
+        return {"run_id": record.id, "events": page, "next_after": next_after}
+
+    def quality_view(self, run_id: str, *, owner_id: str | None = None) -> dict[str, Any]:
+        """Latest validator report + the Q series the erosion detectors read."""
+        record = self.get_record(run_id, owner_id=owner_id)
+        latest = record.reports[-1] if record.reports else None
+        return {
+            "run_id": record.id,
+            "latest": latest,
+            "series": [
+                {
+                    "iter": report.iter,
+                    "q": report.Q,
+                    "gates_passed": report.all_gates_pass,
+                    "verified_citation_ratio": report.verified_citation_ratio,
+                }
+                for report in record.reports
+            ],
+            "best_q": record.best_q,
+        }
+
+    def _storage_rows(self, runtime: _Runtime, section_id: str) -> list[StoredVersion]:
+        return sorted(
+            runtime.article.storage.read_versions(section_id), key=lambda row: row.version
+        )
+
+    async def section_history(
+        self, run_id: str, section_id: str, *, owner_id: str | None = None
+    ) -> dict[str, Any]:
+        """One section's immutable versions, oldest first. Bodies stay in the store."""
+        record = self.get_record(run_id, owner_id=owner_id)
+        runtime = self._runtime_for(record)
+        await runtime.article.get_section(section_id)  # 404 not_found when unknown
+        return {
+            "run_id": record.id,
+            "section_id": section_id,
+            "versions": [
+                {
+                    "section_id": row.section_id,
+                    "version": row.version,
+                    "hash": row.hash,
+                    "words": row.words,
+                    "status": row.status.value,
+                    "chars_added": row.chars_added,
+                    "chars_removed": row.chars_removed,
+                    "patch_id": row.patch_id,
+                    "entry_id": row.entry_id,
+                    "created_at": row.created_at,
+                    "q_after": row.q_after,
+                }
+                for row in self._storage_rows(runtime, section_id)
+            ],
+        }
+
+    async def section_diff(
+        self,
+        run_id: str,
+        section_id: str,
+        *,
+        from_version: int | None = None,
+        to_version: int | None = None,
+        owner_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Unified diff + change sizes between two versions of one section.
+
+        Version 0 is the empty baseline every section starts from, so asking
+        for ``0 -> 1`` shows the first draft as pure additions. ``from``
+        defaults to ``to - 1`` (0 for the first text) and ``to`` to the head,
+        per the OpenAPI contract. ``from > to`` is a ``run_conflict``: the
+        versions exist but the range is not renderable.
+
+        Raises:
+            NotFoundError: unknown section or a version beyond the head.
+            RunConflict: ``from`` names a later version than ``to``.
+        """
+        record = self.get_record(run_id, owner_id=owner_id)
+        runtime = self._runtime_for(record)
+        row = await runtime.article.get_section(section_id)  # 404 when unknown
+        head = row.version
+        resolved_to = head if to_version is None else to_version
+        if resolved_to > head:
+            raise NotFoundError(
+                f"section '{section_id}' has no version {resolved_to} (head is {head})",
+                section_id=section_id,
+                version=resolved_to,
+            )
+        resolved_from = max(0, resolved_to - 1) if from_version is None else from_version
+        if resolved_from > resolved_to:
+            raise RunConflict(
+                f"cannot diff version {resolved_from} against earlier version "
+                f"{resolved_to}: 'from' must not exceed 'to'",
+                run_id=run_id,
+                reason="invalid_version_range",
+                section_id=section_id,
+                from_version=resolved_from,
+                to_version=resolved_to,
+            )
+
+        rows = {stored.version: stored for stored in self._storage_rows(runtime, section_id)}
+
+        def side(version: int) -> dict[str, Any]:
+            if version == 0:
+                return {"version": 0, "hash": EMPTY_SECTION_HASH, "words": 0, "text": ""}
+            stored = rows.get(version)
+            if stored is None:  # pragma: no cover - head bounds make this unreachable
+                raise NotFoundError(
+                    f"section '{section_id}' has no version {version}",
+                    section_id=section_id,
+                    version=version,
+                )
+            return {
+                "version": stored.version,
+                "hash": stored.hash,
+                "words": stored.words,
+                "text": stored.text,
+            }
+
+        left, right = side(resolved_from), side(resolved_to)
+        diff = diff_texts(
+            left["text"],
+            right["text"],
+            from_label=f"{section_id}@{resolved_from}",
+            to_label=f"{section_id}@{resolved_to}",
+        )
+        return {
+            "run_id": record.id,
+            "section_id": section_id,
+            "from": {"version": left["version"], "hash": left["hash"], "words": left["words"]},
+            "to": {"version": right["version"], "hash": right["hash"], "words": right["words"]},
+            "diff": {
+                "stats": {
+                    "chars_added": diff.stats.chars_added,
+                    "chars_removed": diff.stats.chars_removed,
+                    "net_chars": diff.stats.net_chars,
+                    "touched_chars": diff.stats.touched_chars,
+                },
+                "lines_added": diff.lines_added,
+                "lines_removed": diff.lines_removed,
+                "unified": diff.unified,
+            },
+        }
+
+    async def snapshots_list(self, run_id: str, *, owner_id: str | None = None) -> dict[str, Any]:
+        """Whole-article snapshots, newest first, plus the run's best pointer."""
+        record = self.get_record(run_id, owner_id=owner_id)
+        runtime = self._runtime_for(record)
+        best = record.best_snapshot_id
+        if best is None:
+            measured = await runtime.article.best_snapshot()
+            best = None if measured is None else measured.id
+        return {
+            "run_id": record.id,
+            "best_snapshot_id": best,
+            "snapshots": [
+                {
+                    "id": snapshot.id,
+                    "label": snapshot.label,
+                    "q": snapshot.q,
+                    "iter": snapshot.iter,
+                    "created_at": snapshot.created_at,
+                    "section_ids": list(snapshot.section_ids),
+                    "total_words": snapshot.total_words,
+                }
+                for snapshot in await runtime.article.snapshots()
+            ],
+        }
+
+    async def restore_snapshot(
+        self, run_id: str, snapshot_id: str, *, dry_run: bool = False, owner_id: str | None = None
+    ) -> dict[str, Any]:
+        """Roll the article back to a snapshot as new versions (history is append-only).
+
+        Refuses while the run is executing (a wave could interleave patches
+        with the restore). ``dry_run=True`` reports exactly what a real
+        restore would change - which sections differ and which version each
+        restored section would get - without writing anything.
+
+        Raises:
+            RunConflict: the run is executing right now.
+            NotFoundError: no snapshot with that id belongs to this run.
+        """
+        record = self.get_record(run_id, owner_id=owner_id)
+        if self.is_running(run_id) or record.state is RunStateName.EXECUTING:
+            raise RunConflict(
+                "run is executing; restore when the current wave finishes",
+                run_id=run_id,
+                reason="restore_while_running",
+                state=record.state.value,
+            )
+        runtime = self._runtime_for(record)
+
+        if dry_run:
+            snapshot = runtime.article.storage.read_snapshot(snapshot_id)
+            if snapshot is None:
+                raise NotFoundError(f"no snapshot '{snapshot_id}'", snapshot_id=snapshot_id)
+            restored: list[str] = []
+            unchanged: list[str] = []
+            versions: dict[str, int] = {}
+            for part in snapshot.sections:
+                row = runtime.article.storage.read_section(part.state.id)
+                head_text = "" if row is None else row.text
+                if content_hash(head_text) == content_hash(part.text):
+                    unchanged.append(part.state.id)
+                else:
+                    restored.append(part.state.id)
+                    versions[part.state.id] = (0 if row is None else row.version) + 1
+            return {
+                "run_id": record.id,
+                "snapshot_id": snapshot.id,
+                "label": snapshot.label,
+                "q": snapshot.q,
+                "restored": restored,
+                "unchanged": unchanged,
+                "versions": versions,
+                "state": record.state,
+                "updated_at": record.updated_at,
+                "dry_run": True,
+            }
+
+        result = await runtime.article.restore(snapshot_id)
+        self._machine.emit(
+            record,
+            "rollback_applied",
+            detail={"snapshot_id": result.snapshot_id, "restored": list(result.restored)},
+            save=False,
+        )
+        await self._persist(record, runtime)
+        return {
+            "run_id": record.id,
+            "snapshot_id": result.snapshot_id,
+            "label": result.label,
+            "q": result.q,
+            "restored": list(result.restored),
+            "unchanged": list(result.unchanged),
+            "versions": dict(result.versions),
+            "state": record.state,
+            "updated_at": record.updated_at,
+            "dry_run": False,
         }
 
 
