@@ -1,1 +1,146 @@
-{"input":{"role":"reviewer","dirty_sections":["introduction"]},"expected":{"reviews":[{"section_id":"introduction","issues":[]}],"scores":{"coherence":75}}}
+{
+  "role": "reviewer",
+  "notes": "One dirty section, one medium issue and a full rubric scorecard. The high-severity path is exercised in the unit tests, not in the fixture.",
+  "input": {
+    "task": {
+      "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "title": "Review the introduction",
+      "role": "reviewer",
+      "section_ids": [
+        "introduction"
+      ],
+      "source_ids": [],
+      "instructions": "Review the introduction against the acceptance list and score every rubric criterion.",
+      "acceptance": [
+        "Every issue has an anchor in the section text",
+        "Every rubric criterion is scored"
+      ],
+      "token_budget": 60000,
+      "depends_on": []
+    },
+    "iter": 1,
+    "brief": {
+      "topic": "Token-frugal orchestration for agentic academic writing",
+      "article_type": "research",
+      "audience": "graduate students and applied NLP practitioners",
+      "language": "en",
+      "target_words": 4000,
+      "citation_style": "APA7",
+      "must_include": [],
+      "must_avoid": [
+        "claims about model capabilities without evidence"
+      ],
+      "provided_data": [
+        "Pilot run: 11 iterations, 612,400 tokens, Q 68 -> 81."
+      ]
+    },
+    "sections": [
+      {
+        "id": "introduction",
+        "title": "Introduction",
+        "order": 0,
+        "version": 1,
+        "hash": "sha256:abababababababababababababababababababababababababababababababab",
+        "words": 130,
+        "status": "draft"
+      }
+    ],
+    "sources": [
+      {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FC2",
+        "title": "Budgeted multi-agent writing with a deterministic controller",
+        "authors": [
+          "Nguyen, L.",
+          "Alvarez, R."
+        ],
+        "year": 2024,
+        "venue": "Journal of Applied NLP Systems",
+        "doi": "10.1234/jans.2024.00042",
+        "url": "https://example.org/jans/2024/42",
+        "snippet": "A bounded, reference-passing controller kept prompt growth linear in the number of iterations while reported quality kept improving across eleven drafts.",
+        "verification": "unknown"
+      },
+      {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FD3",
+        "title": "Token-aware scheduling for long-running language-model pipelines",
+        "authors": [
+          "Petrova, M."
+        ],
+        "year": 2023,
+        "venue": "Proceedings of the 2023 Conference on Systems for Machine Learning",
+        "doi": "10.5555/sysml.2023.117",
+        "url": null,
+        "snippet": "Scheduling on token estimates rather than wall time held tail latency flat as the number of pipeline stages grew, at a small cost in throughput.",
+        "verification": "unknown"
+      }
+    ],
+    "texts": [
+      {
+        "id": "introduction",
+        "text": "Agentic writing systems rarely report what their iterations cost, so a quality gain is hard to separate from brute force. Nguyen and Alvarez (2024) describe a controller that passes references instead of full text between agents, which keeps prompt size tied to the number of sections rather than to the length of the draft [[CITE:01ARZ3NDEKTSV4RRFFQ69G5FC2]]. Petrova (2023) reports the same effect in scheduling, where token-aware admission kept tail latency flat as the pipeline grew [[CITE:01ARZ3NDEKTSV4RRFFQ69G5FD3]]. This article asks whether that discipline survives when five specialised agents share one append-only ledger. The pilot run in the brief suggests it does: eleven iterations produced a measurable quality gain while total spend stayed inside a single run budget. The contribution is a controller design that makes the trade visible, and a first measurement."
+      }
+    ]
+  },
+  "expected": {
+    "result": {
+      "entry": {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FB1",
+        "iter": 1,
+        "task_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "role": "reviewer",
+        "targets": [
+          "introduction"
+        ],
+        "summary": "Reviewed the introduction: one medium issue about the missing method sketch, rubric scored, section set to reviewed.",
+        "tokens": {
+          "in": 0,
+          "out": 0,
+          "cached": 0
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      "patches": [],
+      "source_cards": [],
+      "sections": [
+        {
+          "id": "introduction",
+          "title": "Introduction",
+          "order": 0,
+          "version": 1,
+          "hash": "sha256:abababababababababababababababababababababababababababababababab",
+          "words": 130,
+          "status": "reviewed"
+        }
+      ],
+      "report": null
+    },
+    "output": {
+      "reviews": [
+        {
+          "section_id": "introduction",
+          "issues": [
+            {
+              "severity": "med",
+              "anchor": "This article asks whether that discipline survives",
+              "problem": "The introduction poses the question without saying how it will be answered, so a reader cannot tell what the method is.",
+              "suggested_fix": "Name the controller and the ledger in one sentence before the pilot-run claim."
+            }
+          ],
+          "scores": {
+            "contribution_and_gap": 74,
+            "coherence": 78,
+            "claims_supported": 72,
+            "methods_clarity": 55,
+            "results_match_claims": 68,
+            "literature_coverage": 60,
+            "language": 80,
+            "consistency": 76,
+            "limitations_and_ethics": 58
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,15 @@
+CONTEXT: Repo https://github.com/Armannay/ScholarLoop-Agentic-Academic-Article-Platform. Create your branch from the latest main.
+FIRST read these files (do not modify them) and confirm in one line each that you read them: everything under backend/app/contracts/, backend/app/core/errors.py, backend/app/providers/{base,errors,mock}.py, config/policies.yaml, plus the EXTRA FILES below. Contracts are frozen (tag <contracts-v1.1>). If you need a contract change, do NOT edit it: list it under CONTRACT-CHANGE-REQUESTS.
+Quality gate: make check must pass. Open a PR to main when done, filling Step / Depends on / Contract changes. Save this prompt and your raw output in docs/arena-log/step-<NN>/.
+TASK:
+<ROLE: prompt engineer and Python engineer.
+GOAL: Implement the five role agents on the Step 5 runtime — architect, researcher, writer, reviewer, validator. Short prompts, strict JSON outputs. Use the Step 5 runtime and skills, the Step 6 tools, the frozen contracts, config/rubric.yaml and config/policies.yaml.
+DELIVERABLES (backend/app/agents/roles/, rules/agents/, prompts/): per role a class, a rules file (<= 400 tokens), a Pydantic output schema returned inside AgentResult, allowed tools, default model tier and token caps.
+- architect: from the Brief produce an ordered section list with goal, target words, key claims per section (claims map) and required sources per section, returned as SectionState seeds. Runs again only on Planner request.
+- researcher: for a section or question return at most 12 SourceCards (via scholar_search) with a 2-sentence finding each. Never invents a source; when nothing is found, say so.
+- writer: ONE section per task; uses only supplied SourceCards; emits [[CITE:source_id]] markers; returns a Patch (replace_section for empty or draft sections, targeted ops afterwards); respects target words ±10 percent; adds no facts absent from brief and sources; returns needs_user_input when data or results are missing.
+- reviewer: reads only dirty sections; returns at most 8 issues per section {severity, anchor, problem, suggested fix <= 30 words} and soft-criterion scores 0-100 per rubric. MUST NOT rewrite text.
+- validator: run deterministic tools first to set hard gates; use a cheap model only for subjective checks; compute Q from the reviewer's latest soft scores (carried forward for unchanged sections); return a QualityReport including verified_citation_ratio.
+Also prompts/<role>.golden.json - one input->expected-output example per role, used as test fixtures.
+TESTS (MockProvider plus fixtures): schema compliance; writer cannot cite unknown ids; reviewer output never contains rewritten paragraphs (length cap); validator gates match tool results; token caps respected.>
+EXTRA FILES: <the same role-agents brief; backend/app/agents/base.py and the Step 5 runtime (context, registry, governor, binding), backend/app/agents/context.py, skills/ and backend/app/skills/loader.py, backend/app/tools/ (Step 6 tools and the scoped ToolRegistry), config/rubric.yaml and backend/app/core/rubric.py, config/tool_policy.yaml, backend/app/core/policies.py, backend/app/api/routers/runs.py.>
