@@ -78,3 +78,12 @@ up to date. The warning is Starlette's existing httpx deprecation warning.
 None. No files under `backend/app/contracts/` or other requested read-only files
 were modified. `git ls-remote` did not list a remote `contracts-v1.1` tag, so the
 frozen files were checked against the session's `main` commit, not a tag SHA.
+
+## Pull request
+
+```
+gh pr create --base main --head arena/2663b4cf-scholarloop-agentic-academic-a \
+  --title "Step 6: harden deterministic research and validation tools" \
+  --body-file docs/arena-log/step-06/pr-body.md
+https://github.com/Armannay/ScholarLoop-Agentic-Academic-Article-Platform/pull/22
+```
