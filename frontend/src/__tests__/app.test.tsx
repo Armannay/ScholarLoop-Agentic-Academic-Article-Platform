@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { beforeEach, describe, it } from 'node:test'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { beforeEach, describe, it } from 'vitest'
 import openapi from '../openapi.json'
 import { AccountsPage } from '../AccountsPage'
 import { AgentsPage } from '../AgentsPage'
@@ -26,6 +26,7 @@ import {
   testAccount,
 } from '../api'
 import { AuthProvider } from '../auth'
+import { ENGLISH_BRIEF } from '../fixtures'
 import { MockApiServer } from '../mockServer'
 import { EXECUTING_AGENT_ROLES, PRIMARY_BINDING_ROLES, type UserView } from '../types'
 
@@ -261,20 +262,32 @@ describe('ScholarLoop 10a Frontend (OpenAPI + MockServer + Accounts + Agents)', 
     const { access_token } = await registerUser({ email: 'sse@example.org', password: USER_CRED })
     setAccessToken(access_token)
 
-    const createRes = await server.fetch('http://scholarloop.local/api/projects/demo/runs', {
+    const projectRes = await server.fetch('http://scholarloop.local/api/projects', {
       method: 'POST',
       headers: {
         authorization: `Bearer ${access_token}`,
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ quick_edit: { section_id: 'intro', instructions: 'tighten' } }),
+      body: JSON.stringify({ name: 'sse-demo', brief: ENGLISH_BRIEF }),
+    })
+    assert.equal(projectRes.status, 201)
+    const project = (await projectRes.json()) as { id: string }
+
+    const createRes = await server.fetch(`http://scholarloop.local/api/projects/${project.id}/runs`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${access_token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ brief: ENGLISH_BRIEF }),
     })
     assert.equal(createRes.status, 202)
     const run = (await createRes.json()) as { id: string }
 
     const events: string[] = []
     await streamRunEvents(run.id, (ev) => events.push(ev.type), { once: true })
-    assert.deepEqual(events, ['run_created', 'checkpoint_reached'])
+    assert.equal(events[0], 'run_created')
+    assert.ok(events.includes('checkpoint_reached'))
   })
 
   it('renders AuthPage, AccountsPage, and AgentsPage (planner + 5 roles) cleanly without secrets', async () => {

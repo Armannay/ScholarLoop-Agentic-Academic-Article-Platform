@@ -6,7 +6,7 @@ PIP   := $(VENV)/bin/pip
 
 .DEFAULT_GOAL := help
 
-.PHONY: help venv install lint format type test check skill-lint schemas schemas-check openapi-install openapi-check openapi-mock openapi-client migrate migration run backend frontend-install frontend-build frontend-dev dev up down clean
+.PHONY: help venv install lint format type test check skill-lint schemas schemas-check openapi-install openapi-check openapi-mock openapi-client migrate migration run backend frontend-install frontend-build frontend-dev frontend-test frontend-check frontend-e2e dev up down clean
 
 help: ## show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -73,6 +73,15 @@ frontend-install: ## npm install for frontend/
 
 frontend-build: ## typecheck + production build of frontend/
 	cd frontend && npm run build
+
+frontend-test: ## vitest unit + jsdom component tests (mock API only)
+	cd frontend && npm test
+
+frontend-check: ## the frontend gate: typecheck, unit tests, production build
+	cd frontend && npm run lint && npm test && npm run build
+
+frontend-e2e: ## Playwright smoke test (once: cd frontend && npx playwright install chromium)
+	cd frontend && npm run e2e
 
 frontend-dev: ## run the Vite dev server on :5173 (binds 0.0.0.0)
 	cd frontend && npm run dev

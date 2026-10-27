@@ -1,0 +1,66 @@
+
+> scholarloop-frontend@0.1.0 prelint
+> npm run client --silent
+
+✨ openapi-typescript 7.13.0
+🚀 ../docs/openapi/openapi.yaml → src/generated/api-schema.d.ts [294ms]
+
+> scholarloop-frontend@0.1.0 lint
+> tsc --noEmit
+
+
+ RUN  v5.0.5 /home/user/ScholarLoop-Agentic-Academic-Article-Platform/frontend
+
+ ✓ src/__tests__/runPage.test.tsx (6 tests) 1001ms
+   ✓ RunPage (state badge, plan board, SSE change log, meters, Q chart) (6)
+     ✓ renders the run state, the plan grouped by role, the gates and the budget meters 375ms
+ ✓ src/__tests__/articleViewer.test.tsx (6 tests) 662ms
+   ✓ ArticleViewer (sections, history, diff, restore, RTL, export) (6)
+     ✓ opens a section history and compares two versions 336ms
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ ✓ src/__tests__/appRoutes.test.tsx (3 tests) 642ms
+   ✓ App shell navigation (projects -> run -> article) (3)
+     ✓ walks from the project list to the article viewer without losing the session 531ms
+ ✓ src/__tests__/projectFlow.test.tsx (8 tests) 447ms
+ ✓ src/__tests__/briefWizard.test.tsx (6 tests) 418ms
+ ✓ src/__tests__/app.test.tsx (6 tests) 90ms
+ ✓ src/__tests__/brief.test.ts (10 tests) 24ms
+ ✓ src/__tests__/exportMarkdown.test.ts (3 tests) 7ms
+ ✓ src/__tests__/routing.test.ts (4 tests) 6ms
+
+ Test Files  9 passed (9)
+      Tests  52 passed (52)
+   Start at  19:36:25
+   Duration  11.87s (environment 55%, tests 31%, setup 10%, import 3%, transform 1%, worker 1%)
+
+Environment  jsdom was created 9 times · 5.92s total, 55% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+
+> scholarloop-frontend@0.1.0 build
+> npm run lint && vite build
+
+
+> scholarloop-frontend@0.1.0 prelint
+> npm run client --silent
+
+✨ openapi-typescript 7.13.0
+🚀 ../docs/openapi/openapi.yaml → src/generated/api-schema.d.ts [286.2ms]
+
+> scholarloop-frontend@0.1.0 lint
+> tsc --noEmit
+
+vite v7.2.2 building client environment for production...
+transforming...
+✓ 56 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.64 kB │ gzip:   0.39 kB
+dist/assets/index-D39W3UTb.css   15.07 kB │ gzip:   3.43 kB
+dist/assets/index-DUat_acY.js   357.53 kB │ gzip: 108.32 kB │ map: 1,421.16 kB
+✓ built in 1.88s

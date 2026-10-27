@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AccountsPage } from './AccountsPage'
 import { AgentsPage } from './AgentsPage'
+import { ArticleViewer } from './ArticleViewer'
 import { AuthPage } from './AuthPage'
 import {
   fetchAllBindings,
@@ -13,6 +14,10 @@ import {
   subscribeMockMode,
 } from './api'
 import { AuthProvider, useAuth } from './auth'
+import { NewProjectPage } from './NewProjectPage'
+import { ProjectPage } from './ProjectPage'
+import { ProjectsPage } from './ProjectsPage'
+import { RunPage } from './RunPage'
 import { StatusConsole } from './StatusConsole'
 import { StatusPill } from './StatusPill'
 import {
@@ -23,13 +28,31 @@ import {
   type ConfigResponse,
   type ContractListResponse,
   type HealthResponse,
+  type ProjectView,
+  type RunView,
 } from './types'
 import { useAsync } from './useApi'
 import './styles.css'
 
 const HEALTH_POLL_MS = 5000
 
-export type PageId = 'accounts' | 'agents' | 'status'
+export type PageId =
+  | 'accounts'
+  | 'agents'
+  | 'status'
+  | 'projects'
+  | 'project'
+  | 'new-project'
+  | 'run'
+  | 'article'
+
+export interface Route {
+  page: PageId
+  projectId?: string
+  runId?: string
+}
+
+const DEFAULT_ROUTE: Route = { page: 'projects' }
 
 const EMPTY_BINDINGS: Readonly<Record<BindingRole, BindingView | null>> = {
   planner: null,
@@ -41,11 +64,54 @@ const EMPTY_BINDINGS: Readonly<Record<BindingRole, BindingView | null>> = {
   compactor: null,
 }
 
-function readHashPage(): PageId {
-  if (typeof window === 'undefined') return 'accounts'
-  const hash = window.location.hash.replace(/^#\/?/, '')
-  if (hash === 'agents' || hash === 'status' || hash === 'accounts') return hash
-  return 'accounts'
+/**
+ * Parse the hash route.
+ *
+ * `#projects`, `#projects/<id>`, `#projects/new`, `#runs/<runId>`, `#runs/<runId>/article`,
+ * plus the pre-existing `#accounts`, `#agents`, `#status`. Anything unrecognised falls
+ * back to the project list rather than rendering a blank page.
+ */
+export function parseRoute(hash: string): Route {
+  const cleaned = hash.replace(/^#\/?/, '')
+  const [head, ...rest] = cleaned.split('/')
+  if (!head) return DEFAULT_ROUTE
+  if (head === 'accounts' || head === 'agents' || head === 'status') {
+    return { page: head }
+  }
+  if (head === 'projects') {
+    const segment = rest.join('/')
+    if (!segment) return { page: 'projects' }
+    if (segment === 'new') return { page: 'new-project' }
+    return { page: 'project', projectId: decodeURIComponent(segment) }
+  }
+  if (head === 'runs' && rest.length > 0) {
+    const runId = decodeURIComponent(rest[0] ?? '')
+    if (!runId) return DEFAULT_ROUTE
+    return rest[1] === 'article' ? { page: 'article', runId } : { page: 'run', runId }
+  }
+  return DEFAULT_ROUTE
+}
+
+export function routeToHash(route: Route): string {
+  switch (route.page) {
+    case 'projects':
+      return '#projects'
+    case 'new-project':
+      return '#projects/new'
+    case 'project':
+      return `#projects/${encodeURIComponent(route.projectId ?? '')}`
+    case 'run':
+      return `#runs/${encodeURIComponent(route.runId ?? '')}`
+    case 'article':
+      return `#runs/${encodeURIComponent(route.runId ?? '')}/article`
+    default:
+      return `#${route.page}`
+  }
+}
+
+function readHashRoute(): Route {
+  if (typeof window === 'undefined') return DEFAULT_ROUTE
+  return parseRoute(window.location.hash)
 }
 
 export function App(): React.JSX.Element {
@@ -58,8 +124,11 @@ export function App(): React.JSX.Element {
 
 export function AppShell({ initialPage }: { initialPage?: PageId | undefined }): React.JSX.Element {
   const { user, loading: authLoading, logout } = useAuth()
-  const [page, setPage] = useState<PageId>(() => initialPage ?? readHashPage())
+  const [route, setRoute] = useState<Route>(() =>
+    initialPage ? { page: initialPage } : readHashRoute(),
+  )
   const [mockActive, setMockActive] = useState<boolean>(() => isMockMode())
+  const [lastProject, setLastProject] = useState<ProjectView | null>(null)
 
   const loadHealth = useCallback((signal?: AbortSignal) => fetchHealth(signal), [])
   const loadConfig = useCallback((signal?: AbortSignal) => fetchConfig(signal), [])
@@ -94,17 +163,23 @@ export function AppShell({ initialPage }: { initialPage?: PageId | undefined }):
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const onHash = (): void => setPage(readHashPage())
+    const onHash = (): void => setRoute(readHashRoute())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
-  const navigate = (target: PageId): void => {
-    setPage(target)
+  const navigate = useCallback((next: Route): void => {
+    setRoute(next)
     if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `#${target}`)
+      const hash = routeToHash(next)
+      if (window.location.hash !== hash) {
+        // replaceState keeps the back button out of a scroll-fight, and the hash stays
+        // copy-pasteable: every screen has a URL.
+        window.history.replaceState(null, '', hash)
+      }
+      window.scrollTo({ top: 0 })
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!user) {
@@ -115,7 +190,7 @@ export function AppShell({ initialPage }: { initialPage?: PageId | undefined }):
     }
     const controller = new AbortController()
     setWorkspaceLoading(true)
-    Promise.all([listAccounts(controller.signal), fetchAllBindings( undefined, controller.signal)])
+    Promise.all([listAccounts(controller.signal), fetchAllBindings(undefined, controller.signal)])
       .then(([accList, bindingMap]) => {
         if (controller.signal.aborted) return
         setAccounts(accList)
@@ -138,6 +213,121 @@ export function AppShell({ initialPage }: { initialPage?: PageId | undefined }):
 
   const toggleMock = (): void => {
     setMockMode(!mockActive)
+  }
+
+  const handleProjectCreated = (project: ProjectView): void => {
+    setLastProject(project)
+    navigate({ page: 'project', projectId: project.id })
+  }
+
+  const handleRunStarted = (run: RunView): void => {
+    navigate({ page: 'run', runId: run.id })
+  }
+
+  const onProjectsTab = route.page === 'projects' || route.page === 'project' || route.page === 'new-project'
+
+  const renderMain = (): React.JSX.Element => {
+    if (route.page === 'status') {
+      return (
+        <StatusConsole
+          health={health.data}
+          healthError={health.error}
+          config={config.data}
+          configError={config.error}
+          contracts={contracts.data}
+          contractsError={contracts.error}
+        />
+      )
+    }
+    if (authLoading) {
+      return (
+        <section className="panel">
+          <p className="dim">Restoring session…</p>
+        </section>
+      )
+    }
+    if (!user) return <AuthPage mockMode={mockActive} />
+
+    switch (route.page) {
+      case 'accounts':
+        return (
+          <AccountsPage
+            accounts={accounts}
+            bindings={bindings}
+            loading={workspaceLoading}
+            error={workspaceError}
+            onRefresh={refreshWorkspace}
+          />
+        )
+      case 'agents':
+        return (
+          <AgentsPage
+            accounts={accounts}
+            bindings={bindings}
+            policies={config.data?.policies ?? null}
+            loading={workspaceLoading}
+            onRefresh={refreshWorkspace}
+            onOpenAccounts={() => navigate({ page: 'accounts' })}
+          />
+        )
+      case 'new-project':
+        return (
+          <NewProjectPage
+            onCreated={handleProjectCreated}
+            onCancel={() => navigate({ page: 'projects' })}
+            onRunStarted={handleRunStarted}
+          />
+        )
+      case 'project':
+        return route.projectId ? (
+          <ProjectPage
+            projectId={route.projectId}
+            onOpenRun={(runId) => navigate({ page: 'run', runId })}
+            onBack={() => navigate({ page: 'projects' })}
+            onNewProject={() => navigate({ page: 'new-project' })}
+          />
+        ) : (
+          <ProjectsPage
+            onOpenProject={(projectId) => navigate({ page: 'project', projectId })}
+            onNewProject={() => navigate({ page: 'new-project' })}
+          />
+        )
+      case 'run':
+        return route.runId ? (
+          <RunPage
+            runId={route.runId}
+            onOpenArticle={(runId) => navigate({ page: 'article', runId })}
+            onBack={() => navigate({ page: 'projects' })}
+          />
+        ) : (
+          <ProjectsPage
+            onOpenProject={(projectId) => navigate({ page: 'project', projectId })}
+            onNewProject={() => navigate({ page: 'new-project' })}
+          />
+        )
+      case 'article':
+        return route.runId ? (
+          <ArticleViewer
+            runId={route.runId}
+            brief={lastProject?.brief ?? null}
+            onBack={() => {
+              if (route.runId) navigate({ page: 'run', runId: route.runId })
+            }}
+          />
+        ) : (
+          <ProjectsPage
+            onOpenProject={(projectId) => navigate({ page: 'project', projectId })}
+            onNewProject={() => navigate({ page: 'new-project' })}
+          />
+        )
+      default:
+        return (
+          <ProjectsPage
+            onOpenProject={(projectId) => navigate({ page: 'project', projectId })}
+            onNewProject={() => navigate({ page: 'new-project' })}
+          />
+        )
+    }
   }
 
   return (
@@ -196,16 +386,26 @@ export function AppShell({ initialPage }: { initialPage?: PageId | undefined }):
       <nav className="top-nav" aria-label="Primary navigation">
         <button
           type="button"
-          className={page === 'accounts' ? 'nav-tab nav-tab-active' : 'nav-tab'}
-          onClick={() => navigate('accounts')}
+          className={onProjectsTab ? 'nav-tab nav-tab-active' : 'nav-tab'}
+          onClick={() => navigate({ page: 'projects' })}
+          aria-current={onProjectsTab ? 'page' : undefined}
+        >
+          Projects
+        </button>
+        <button
+          type="button"
+          className={route.page === 'accounts' ? 'nav-tab nav-tab-active' : 'nav-tab'}
+          onClick={() => navigate({ page: 'accounts' })}
+          aria-current={route.page === 'accounts' ? 'page' : undefined}
         >
           Accounts
           {user && <span className="nav-count mono">{accounts.length}</span>}
         </button>
         <button
           type="button"
-          className={page === 'agents' ? 'nav-tab nav-tab-active' : 'nav-tab'}
-          onClick={() => navigate('agents')}
+          className={route.page === 'agents' ? 'nav-tab nav-tab-active' : 'nav-tab'}
+          onClick={() => navigate({ page: 'agents' })}
+          aria-current={route.page === 'agents' ? 'page' : undefined}
         >
           Agents
           {user && (
@@ -216,10 +416,11 @@ export function AppShell({ initialPage }: { initialPage?: PageId | undefined }):
         </button>
         <button
           type="button"
-          className={page === 'status' ? 'nav-tab nav-tab-active' : 'nav-tab'}
-          onClick={() => navigate('status')}
+          className={route.page === 'status' ? 'nav-tab nav-tab-active' : 'nav-tab'}
+          onClick={() => navigate({ page: 'status' })}
+          aria-current={route.page === 'status' ? 'page' : undefined}
         >
-          Status & Schemas
+          Status &amp; Schemas
         </button>
       </nav>
 
@@ -272,41 +473,7 @@ export function AppShell({ initialPage }: { initialPage?: PageId | undefined }):
         </section>
       )}
 
-      <main className="main-area">
-        {page === 'status' ? (
-          <StatusConsole
-            health={health.data}
-            healthError={health.error}
-            config={config.data}
-            configError={config.error}
-            contracts={contracts.data}
-            contractsError={contracts.error}
-          />
-        ) : authLoading ? (
-          <section className="panel">
-            <p className="dim">Restoring session…</p>
-          </section>
-        ) : !user ? (
-          <AuthPage mockMode={mockActive} />
-        ) : page === 'accounts' ? (
-          <AccountsPage
-            accounts={accounts}
-            bindings={bindings}
-            loading={workspaceLoading}
-            error={workspaceError}
-            onRefresh={refreshWorkspace}
-          />
-        ) : (
-          <AgentsPage
-            accounts={accounts}
-            bindings={bindings}
-            policies={config.data?.policies ?? null}
-            loading={workspaceLoading}
-            onRefresh={refreshWorkspace}
-            onOpenAccounts={() => navigate('accounts')}
-          />
-        )}
-      </main>
+      <main className="main-area">{renderMain()}</main>
 
       <footer className="footer">
         <span>
@@ -321,7 +488,7 @@ export function AppShell({ initialPage }: { initialPage?: PageId | undefined }):
         </span>
         <span className="dim">
           HARD RULE 2: keys are write-only; only 4-char masks and 12-char ciphertext fingerprints
-          are ever rendered.
+          are ever rendered. Sessions live in sessionStorage, never in localStorage.
         </span>
       </footer>
     </div>

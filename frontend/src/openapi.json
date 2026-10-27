@@ -418,7 +418,17 @@
         "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BindingView" } } } }, "404": { "description": "Account not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }, "422": { "description": "Contract violation", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } } }
       }
     },
+    "/api/projects": {
+      "get": { "tags": ["projects"], "security": [{ "bearerAuth": [] }], "responses": { "200": { "description": "OK" } } },
+      "post": { "tags": ["projects"], "security": [{ "bearerAuth": [] }], "responses": { "201": { "description": "Created" } } }
+    },
+    "/api/projects/{project_id}": {
+      "get": { "tags": ["projects"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "project_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } },
+      "patch": { "tags": ["projects"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "project_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } },
+      "delete": { "tags": ["projects"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "project_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "204": { "description": "Deleted" } } }
+    },
     "/api/projects/{project_id}/runs": {
+      "get": { "tags": ["projects"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "project_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } },
       "post": {
         "tags": ["runs"],
         "security": [{ "bearerAuth": [] }],
@@ -448,17 +458,38 @@
         "responses": { "200": { "description": "SSE stream", "content": { "text/event-stream": { "schema": { "type": "string" } } } } }
       }
     },
+    "/api/runs/{run_id}/events/history": {
+      "get": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+    },
     "/api/runs/{run_id}/digest": {
       "get": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
     },
     "/api/runs/{run_id}/ledger": {
       "get": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
     },
-    "/api/runs/{run_id}/article": {
+    "/api/runs/{run_id}/quality": {
       "get": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
     },
+    "/api/runs/{run_id}/article": {
+      "get": { "tags": ["article"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+    },
+    "/api/runs/{run_id}/article/sections/{section_id}/history": {
+      "get": { "tags": ["article"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "section_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+    },
+    "/api/runs/{run_id}/article/sections/{section_id}/diff": {
+      "get": { "tags": ["article"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "section_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+    },
+    "/api/runs/{run_id}/article/snapshots": {
+      "get": { "tags": ["article"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+    },
+    "/api/runs/{run_id}/article/restore": {
+      "post": { "tags": ["article"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+    },
     "/api/runs/{run_id}/usage": {
-      "get": { "tags": ["runs"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+      "get": { "tags": ["usage"], "security": [{ "bearerAuth": [] }], "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "OK" } } }
+    },
+    "/api/errors/catalog": {
+      "get": { "tags": ["errors"], "security": [{ "bearerAuth": [] }], "responses": { "200": { "description": "OK" } } }
     }
   }
 }

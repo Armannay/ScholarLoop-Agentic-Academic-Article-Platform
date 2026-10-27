@@ -77,6 +77,8 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      - name: vitest (unit + jsdom component tests, mock API only)
+        run: npm test
       - run: npm run build
 
   secrets:
@@ -99,3 +101,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config --quiet
+
+  e2e:
+    name: frontend (Playwright smoke: project -> run -> checkpoint -> article)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      # The smoke test drives the mock API (VITE_API_MOCK=true), so no backend,
+      # database or provider key is involved.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e

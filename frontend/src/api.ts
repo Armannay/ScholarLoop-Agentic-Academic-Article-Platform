@@ -1,6 +1,6 @@
-// Typed REST + SSE client for ScholarLoop (/api/*).
-// Requests use same-origin relative paths by default so Vite's proxy (or MockApiServer)
-// handles routing without ever exposing localhost to a remote browser preview.
+// Typed REST + SSE client for ScholarLoop (/api/*), backed by the OpenAPI 3.1 schema.
+// HARD RULE 2 & Security Rule: Never render or store secrets; no localStorage is used for
+// keys or tokens beyond the browser session (tokens live in memory + sessionStorage only).
 
 import { defaultMockServer } from './mockServer'
 import {
@@ -9,17 +9,36 @@ import {
   type AccountPatch,
   type AccountTestResult,
   type AccountView,
+  type ArticleView,
   type BindingPut,
   type BindingRole,
   type BindingView,
   type ConfigResponse,
   type ContractListResponse,
   type DeleteResult,
+  type DigestView,
   type HealthResponse,
+  type LedgerView,
   type LoginRequest,
+  type ProjectCreate,
+  type ProjectList,
+  type ProjectPatch,
+  type ProjectView,
+  type QualityView,
   type RegisterRequest,
+  type RestoreRequest,
+  type RestoreView,
+  type RunCreateRequest,
   type RunEvent,
+  type RunEventList,
+  type RunList,
+  type RunUsageView,
+  type RunView,
+  type SectionDiffView,
+  type SectionHistoryView,
+  type SnapshotList,
   type TokenResponse,
+  type UserDecisionRequest,
   type UserView,
   type ValidationFieldError,
 } from './types'
@@ -28,24 +47,31 @@ export type FetchTransport = (input: string, init?: RequestInit) => Promise<Resp
 
 const metaEnv = (import.meta as { env?: Record<string, string | undefined> }).env ?? {}
 const API_BASE = (metaEnv.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
-const TOKEN_STORAGE_KEY = 'scholarloop.jwt'
-const MOCK_STORAGE_KEY = 'scholarloop.mock'
+const TOKEN_SESSION_KEY = 'scholarloop.jwt'
+const MOCK_SESSION_KEY = 'scholarloop.mock'
 
-function readStorage(key: string): string | null {
+function readSessionValue(key: string): string | null {
   try {
-    return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null
+    if (typeof localStorage !== 'undefined') {
+      // Never persist tokens or keys in localStorage beyond the session.
+      localStorage.removeItem(TOKEN_SESSION_KEY)
+    }
+    return typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(key) : null
   } catch {
     return null
   }
 }
 
-function writeStorage(key: string, value: string | null): void {
+function writeSessionValue(key: string, value: string | null): void {
   try {
-    if (typeof localStorage === 'undefined') return
-    if (value === null) localStorage.removeItem(key)
-    else localStorage.setItem(key, value)
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(TOKEN_SESSION_KEY)
+    }
+    if (typeof sessionStorage === 'undefined') return
+    if (value === null) sessionStorage.removeItem(key)
+    else sessionStorage.setItem(key, value)
   } catch {
-    // Ignore private-browsing storage quota errors; in-memory state stays authoritative.
+    // In-memory state stays authoritative when storage is unavailable.
   }
 }
 
@@ -55,10 +81,10 @@ function detectInitialMockMode(): boolean {
     const param = new URLSearchParams(window.location.search).get('mock')
     if (param === '1' || param === 'true') return true
   }
-  return readStorage(MOCK_STORAGE_KEY) === '1'
+  return readSessionValue(MOCK_SESSION_KEY) === '1'
 }
 
-let memoryToken: string | null = readStorage(TOKEN_STORAGE_KEY)
+let memoryToken: string | null = readSessionValue(TOKEN_SESSION_KEY)
 let mockMode: boolean = detectInitialMockMode()
 let customTransport: FetchTransport | null = null
 
@@ -71,7 +97,7 @@ export function getAccessToken(): string | null {
 
 export function setAccessToken(token: string | null): void {
   memoryToken = token
-  writeStorage(TOKEN_STORAGE_KEY, token)
+  writeSessionValue(TOKEN_SESSION_KEY, token)
 }
 
 export function subscribeUnauthorized(listener: () => void): () => void {
@@ -88,7 +114,7 @@ export function isMockMode(): boolean {
 export function setMockMode(enabled: boolean): void {
   if (mockMode === enabled) return
   mockMode = enabled
-  writeStorage(MOCK_STORAGE_KEY, enabled ? '1' : null)
+  writeSessionValue(MOCK_SESSION_KEY, enabled ? '1' : null)
   for (const listener of mockModeListeners) listener(enabled)
 }
 
@@ -114,6 +140,8 @@ export class ApiError extends Error {
   readonly code: string | undefined
   readonly context: Record<string, unknown> | undefined
   readonly fieldErrors: readonly ValidationFieldError[]
+  readonly missingFields: readonly string[]
+  readonly problems: readonly string[]
 
   constructor(
     message: string,
@@ -127,7 +155,14 @@ export class ApiError extends Error {
     this.code = code
     this.context = context
     this.fieldErrors = parseFieldErrors(context)
+    this.missingFields = parseStringArray(context?.missing_fields)
+    this.problems = parseStringArray(context?.problems)
   }
+}
+
+function parseStringArray(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter((item): item is string => typeof item === 'string')
 }
 
 function parseFieldErrors(context?: Record<string, unknown>): ValidationFieldError[] {
@@ -180,10 +215,14 @@ interface RequestOptions {
   body?: unknown
   signal?: AbortSignal | undefined
   auth?: boolean | undefined
+  headers?: Record<string, string> | undefined
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json' }
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...(options.headers ?? {}),
+  }
   const sentToken = options.auth ? memoryToken : null
   if (sentToken) {
     headers.Authorization = `Bearer ${sentToken}`
@@ -350,7 +389,207 @@ export async function putBinding(role: BindingRole, payload: BindingPut): Promis
   })
 }
 
-// --- Authenticated SSE reader (Step 10b seam) ------------------------------
+// --- Projects endpoints (Step 10b / 11) ------------------------------------
+
+export async function listProjects(
+  options: { limit?: number | undefined; cursor?: string | undefined; signal?: AbortSignal | undefined } = {},
+): Promise<ProjectList> {
+  const params = new URLSearchParams()
+  if (options.limit !== undefined) params.set('limit', String(options.limit))
+  if (options.cursor) params.set('cursor', options.cursor)
+  const qs = params.toString()
+  return request<ProjectList>(`/api/projects${qs ? `?${qs}` : ''}`, {
+    auth: true,
+    signal: options.signal,
+  })
+}
+
+export async function createProject(payload: ProjectCreate): Promise<ProjectView> {
+  return request<ProjectView>('/api/projects', {
+    method: 'POST',
+    body: payload,
+    auth: true,
+  })
+}
+
+export async function getProject(projectId: string, signal?: AbortSignal): Promise<ProjectView> {
+  return request<ProjectView>(`/api/projects/${encodeURIComponent(projectId)}`, {
+    auth: true,
+    signal,
+  })
+}
+
+export async function patchProject(
+  projectId: string,
+  payload: ProjectPatch,
+): Promise<ProjectView> {
+  return request<ProjectView>(`/api/projects/${encodeURIComponent(projectId)}`, {
+    method: 'PATCH',
+    body: payload,
+    auth: true,
+  })
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  await request<void>(`/api/projects/${encodeURIComponent(projectId)}`, {
+    method: 'DELETE',
+    auth: true,
+  })
+}
+
+export async function listProjectRuns(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<RunList> {
+  return request<RunList>(`/api/projects/${encodeURIComponent(projectId)}/runs`, {
+    auth: true,
+    signal,
+  })
+}
+
+// --- Runs endpoints (Step 10b) ---------------------------------------------
+
+export async function createRun(
+  projectId: string,
+  payload: RunCreateRequest,
+  options: { scenario?: string | undefined } = {},
+): Promise<RunView> {
+  const headers: Record<string, string> = {}
+  if (options.scenario) {
+    headers['X-ScholarLoop-Scenario'] = options.scenario
+  }
+  return request<RunView>(`/api/projects/${encodeURIComponent(projectId)}/runs`, {
+    method: 'POST',
+    body: payload,
+    auth: true,
+    headers,
+  })
+}
+
+export async function getRun(runId: string, signal?: AbortSignal): Promise<RunView> {
+  return request<RunView>(`/api/runs/${encodeURIComponent(runId)}`, {
+    auth: true,
+    signal,
+  })
+}
+
+export async function submitDecision(
+  runId: string,
+  payload: UserDecisionRequest,
+): Promise<RunView> {
+  return request<RunView>(`/api/runs/${encodeURIComponent(runId)}/decision`, {
+    method: 'POST',
+    body: payload,
+    auth: true,
+  })
+}
+
+export async function stopRun(runId: string): Promise<RunView> {
+  return request<RunView>(`/api/runs/${encodeURIComponent(runId)}/stop`, {
+    method: 'POST',
+    auth: true,
+  })
+}
+
+export async function getRunEventHistory(
+  runId: string,
+  options: { after?: number | undefined; limit?: number | undefined; signal?: AbortSignal | undefined } = {},
+): Promise<RunEventList> {
+  const params = new URLSearchParams()
+  if (options.after !== undefined) params.set('after', String(options.after))
+  if (options.limit !== undefined) params.set('limit', String(options.limit))
+  const qs = params.toString()
+  return request<RunEventList>(
+    `/api/runs/${encodeURIComponent(runId)}/events/history${qs ? `?${qs}` : ''}`,
+    { auth: true, signal: options.signal },
+  )
+}
+
+export async function getRunDigest(runId: string, signal?: AbortSignal): Promise<DigestView> {
+  return request<DigestView>(`/api/runs/${encodeURIComponent(runId)}/digest`, {
+    auth: true,
+    signal,
+  })
+}
+
+export async function getRunLedger(runId: string, signal?: AbortSignal): Promise<LedgerView> {
+  return request<LedgerView>(`/api/runs/${encodeURIComponent(runId)}/ledger`, {
+    auth: true,
+    signal,
+  })
+}
+
+export async function getRunQuality(runId: string, signal?: AbortSignal): Promise<QualityView> {
+  return request<QualityView>(`/api/runs/${encodeURIComponent(runId)}/quality`, {
+    auth: true,
+    signal,
+  })
+}
+
+export async function getRunUsage(runId: string, signal?: AbortSignal): Promise<RunUsageView> {
+  return request<RunUsageView>(`/api/runs/${encodeURIComponent(runId)}/usage`, {
+    auth: true,
+    signal,
+  })
+}
+
+// --- Article, Section History, Diff & Snapshots endpoints (Step 10b) -------
+
+export async function getRunArticle(runId: string, signal?: AbortSignal): Promise<ArticleView> {
+  return request<ArticleView>(`/api/runs/${encodeURIComponent(runId)}/article`, {
+    auth: true,
+    signal,
+  })
+}
+
+export async function getSectionHistory(
+  runId: string,
+  sectionId: string,
+  signal?: AbortSignal,
+): Promise<SectionHistoryView> {
+  return request<SectionHistoryView>(
+    `/api/runs/${encodeURIComponent(runId)}/article/sections/${encodeURIComponent(sectionId)}/history`,
+    { auth: true, signal },
+  )
+}
+
+export async function getSectionDiff(
+  runId: string,
+  sectionId: string,
+  options: { from?: number | undefined; to?: number | undefined; signal?: AbortSignal | undefined } = {},
+): Promise<SectionDiffView> {
+  const params = new URLSearchParams()
+  if (options.from !== undefined) params.set('from', String(options.from))
+  if (options.to !== undefined) params.set('to', String(options.to))
+  const qs = params.toString()
+  return request<SectionDiffView>(
+    `/api/runs/${encodeURIComponent(runId)}/article/sections/${encodeURIComponent(sectionId)}/diff${qs ? `?${qs}` : ''}`,
+    { auth: true, signal: options.signal },
+  )
+}
+
+export async function listArticleSnapshots(
+  runId: string,
+  signal?: AbortSignal,
+): Promise<SnapshotList> {
+  return request<SnapshotList>(`/api/runs/${encodeURIComponent(runId)}/article/snapshots`, {
+    auth: true,
+    signal,
+  })
+}
+
+export async function restoreArticleSnapshot(
+  runId: string,
+  payload: RestoreRequest,
+): Promise<RestoreView> {
+  return request<RestoreView>(`/api/runs/${encodeURIComponent(runId)}/article/restore`, {
+    method: 'POST',
+    body: payload,
+    auth: true,
+  })
+}
+
+// --- Authenticated SSE reader (Step 10b) -----------------------------------
 
 export function parseSseFrames(chunkBuffer: string): { events: RunEvent[]; rest: string } {
   const blocks = chunkBuffer.split('\n\n')
