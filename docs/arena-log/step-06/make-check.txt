@@ -1,0 +1,38 @@
+.venv/bin/ruff check backend
+All checks passed!
+.venv/bin/ruff format --check backend
+180 files already formatted
+.venv/bin/mypy
+Success: no issues found in 119 source files
+.venv/bin/python -m app.skills.lint --skills-dir skills
+ok   abstract-writing          283/400 tokens (ceiling 400)
+ok   citation-apa7             287/400 tokens (ceiling 400)
+ok   citation-ieee             265/400 tokens (ceiling 400)
+ok   imrad-structure           358/400 tokens (ceiling 400)
+ok   literature-matrix         261/400 tokens (ceiling 400)
+ok   patch-format              308/400 tokens (ceiling 400)
+ok   peer-review-checklist     285/400 tokens (ceiling 400)
+7 skill(s) OK in skills
+.venv/bin/python -m pytest
+........................................................................ [  7%]
+........................................................................ [ 14%]
+........................................................................ [ 21%]
+........................................................s.s..s.s...ss... [ 28%]
+ss...................................................................... [ 35%]
+........................................................................ [ 42%]
+........................................................................ [ 49%]
+........................................................................ [ 56%]
+........................................................................ [ 64%]
+........................................................................ [ 71%]
+........................................................................ [ 78%]
+........................................................................ [ 85%]
+........................................................................ [ 92%]
+........................................................................ [ 99%]
+...                                                                      [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.11/site-packages/fastapi/testclient.py:1
+  /home/user/ScholarLoop-Agentic-Academic-Article-Platform/.venv/lib/python3.11/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1003 passed, 8 skipped, 1 warning in 20.06s

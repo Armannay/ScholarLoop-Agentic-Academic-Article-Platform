@@ -1,0 +1,37 @@
+{
+  "status": "ok",
+  "message-type": "work",
+  "message": {
+    "title": [
+      "Streamingbench: Assessing the Gap for MLLMs to Achieve Streaming Video Understanding"
+    ],
+    "DOI": "10.1109/icassp55912.2026.11463959",
+    "published": {
+      "date-parts": [
+        [
+          2026,
+          5,
+          3
+        ]
+      ]
+    },
+    "issued": {
+      "date-parts": [
+        [
+          2026,
+          5,
+          3
+        ]
+      ]
+    },
+    "published-print": {
+      "date-parts": [
+        [
+          2026,
+          5,
+          3
+        ]
+      ]
+    }
+  }
+}

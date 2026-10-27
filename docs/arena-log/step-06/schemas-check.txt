@@ -1,0 +1,2 @@
+.venv/bin/python -m app.scripts.export_schemas --out docs/schemas --check
+23 contract schemas are up to date in docs/schemas

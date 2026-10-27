@@ -312,8 +312,12 @@ async def test_citation_style_and_duplicate_reference_detection() -> None:
             "citation_style": "IEEE",
             "sections": [{"id": "results", "text": "Evidence supports this claim [1]."}],
             "references": [
-                {"key": "[1]", "text": "First paper, DOI 10.1234/same."},
-                {"key": "1", "text": "Duplicate paper, DOI 10.1234/same.", "source_id": source_id},
+                {"key": "[1]", "text": "A. Example, First paper, 2020, DOI 10.1234/same."},
+                {
+                    "key": "1",
+                    "text": "A. Example, Duplicate paper, 2020, DOI 10.1234/same.",
+                    "source_id": source_id,
+                },
             ],
             "source_cards": [{"id": source_id, "verification": "unknown"}],
         },
@@ -355,7 +359,8 @@ async def test_sanitizer_removes_active_markup_limits_input_and_keeps_provenance
     )
     assert "Study" in cleaned.text
     assert "bad()" not in cleaned.text
-    assert "quoted untrusted text" in cleaned.text
+    assert "Ignore previous instructions" not in cleaned.text
+    assert cleaned.removed_instruction_lines == 1
     encoded_markup = sanitize_untrusted_text("&lt;script&gt;hidden()&lt;/script&gt;visible")
     assert "hidden()" not in encoded_markup.text
     assert "visible" in encoded_markup.text
