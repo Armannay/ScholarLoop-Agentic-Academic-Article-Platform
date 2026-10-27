@@ -1,0 +1,71 @@
+{
+  "total": 339360,
+  "data": [
+    {
+      "paperId": "0000796852989039861ba3e5fb3917cbd37bcc84",
+      "title": "Regulation of mitochondrial structure by the actin cytoskeleton",
+      "authors": [
+        {
+          "authorId": "50118756",
+          "name": "Yihe Wu"
+        },
+        {
+          "authorId": "2265488692",
+          "name": "X. Ren"
+        },
+        {
+          "authorId": "153125827",
+          "name": "P. Shi"
+        },
+        {
+          "authorId": "2265527551",
+          "name": "Congying Wu"
+        }
+      ],
+      "year": 2023,
+      "venue": "Cytoskeleton",
+      "externalIds": {
+        "DOI": "10.1002/cm.21804",
+        "CorpusId": 265032769,
+        "PubMed": "37929797"
+      },
+      "url": "https://www.semanticscholar.org/paper/0000796852989039861ba3e5fb3917cbd37bcc84"
+    },
+    {
+      "paperId": "0000c1218d994010bb61f4fe88159f5af54f751f",
+      "title": "Flexible Docking via Unbalanced Flow Matching",
+      "authors": [
+        {
+          "authorId": "1630330616",
+          "name": "Gabriele Corso"
+        },
+        {
+          "authorId": "1380642733",
+          "name": "Vignesh Ram Somnath"
+        },
+        {
+          "authorId": "2354582282",
+          "name": "Noah Getz"
+        },
+        {
+          "authorId": "2254308896",
+          "name": "R. Barzilay"
+        },
+        {
+          "authorId": "35132120",
+          "name": "T. Jaakkola"
+        },
+        {
+          "authorId": "2354575534",
+          "name": "Andreas Krause"
+        }
+      ],
+      "year": null,
+      "venue": "",
+      "externalIds": {
+        "CorpusId": 278860406
+      },
+      "url": "https://www.semanticscholar.org/paper/0000c1218d994010bb61f4fe88159f5af54f751f"
+    }
+  ]
+}

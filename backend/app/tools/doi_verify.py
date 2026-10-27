@@ -12,7 +12,7 @@ from urllib.parse import quote
 import httpx
 
 from app.contracts.enums import VerificationStatus
-from app.contracts.source import SourceCard
+from app.contracts.source import SourceCard, normalise_doi
 from app.tools.base import ToolContext, ToolResult
 from app.tools.sanitize import sanitize_untrusted_text
 
@@ -22,7 +22,11 @@ _SOURCE_PROPERTIES: dict[str, Any] = {
     "schema_version": {"type": "integer", "enum": [1]},
     "id": {"type": "string", "minLength": 26, "maxLength": 26},
     "title": {"type": "string", "minLength": 1, "maxLength": 500},
-    "authors": {"type": "array", "items": {"type": "string"}, "maxItems": 200},
+    "authors": {
+        "type": "array",
+        "items": {"type": "string", "maxLength": 500},
+        "maxItems": 200,
+    },
     "year": {"type": "integer", "minimum": 1400, "maximum": 2200},
     "venue": {"type": "string", "minLength": 1, "maxLength": 300},
     "doi": {"type": ["string", "null"], "maxLength": 255},
@@ -34,22 +38,25 @@ _SOURCE_PROPERTIES: dict[str, Any] = {
 
 def _normal_title(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value).casefold()
-    return " ".join(re.sub(r"[^\w\s]", " ", normalized).split())
+    without_marks = "".join(char for char in normalized if not unicodedata.combining(char))
+    return " ".join(re.sub(r"[^\w\s]", " ", without_marks).split())
 
 
-def _publication_year(message: Mapping[str, Any]) -> int | None:
-    for field in ("published-print", "published-online", "issued", "created"):
+def _publication_years(message: Mapping[str, Any]) -> list[int]:
+    """Collect publication years, not Crossref's metadata-record creation date."""
+    years: set[int] = set()
+    for field in ("published", "issued", "published-print", "published-online"):
         date = message.get(field)
         parts = date.get("date-parts") if isinstance(date, Mapping) else None
         if isinstance(parts, list) and parts and isinstance(parts[0], list) and parts[0]:
             year = parts[0][0]
-            if isinstance(year, int) and 1400 <= year <= 2200:
-                return year
-    return None
+            if isinstance(year, int) and not isinstance(year, bool) and 1400 <= year <= 2200:
+                years.add(year)
+    return sorted(years)
 
 
 class DoiVerifyTool:
-    """Compare a supplied SourceCard with Crossref; never upgrades without metadata."""
+    """Compare a SourceCard with Crossref; both title and year need evidence."""
 
     _NAME: ClassVar[str] = "doi_verify"
     _DESCRIPTION: ClassVar[str] = (
@@ -93,11 +100,13 @@ class DoiVerifyTool:
         if source.doi is None:
             return ToolResult(tool=self.name, ok=False, content="source has no DOI to verify")
 
-        # VERIFY: Crossref's single-work endpoint and response field shape should be
-        # checked against the service's current REST documentation when upgrading.
+        # VERIFY: Crossref's single-work endpoint and response fields can change.
         url = f"https://api.crossref.org/works/{quote(source.doi, safe='/')}"
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self._timeout)
+            self._client = httpx.AsyncClient(
+                timeout=self._timeout,
+                headers={"User-Agent": "ScholarLoop/0.1 (academic metadata verification)"},
+            )
         try:
             response = await self._client.get(url, timeout=self._timeout)
             response.raise_for_status()
@@ -114,57 +123,78 @@ class DoiVerifyTool:
 
         message = payload.get("message") if isinstance(payload, Mapping) else None
         if not isinstance(message, Mapping):
-            return self._result(source, source.verification, [], metadata_available=False)
-
+            message = {}
         titles = message.get("title")
-        metadata_title = titles[0] if isinstance(titles, list) and titles else None
-        metadata_year = _publication_year(message)
+        metadata_title = (
+            next((title for title in titles if isinstance(title, str) and title.strip()), None)
+            if isinstance(titles, list)
+            else None
+        )
+        years = _publication_years(message)
         comparisons: list[dict[str, Any]] = []
-        mismatches = False
-        if isinstance(metadata_title, str) and metadata_title.strip():
-            clean_title = sanitize_untrusted_text(metadata_title, max_chars=500).text
-            title_matches = _normal_title(source.title) == _normal_title(clean_title)
-            comparisons.append({"field": "title", "matches": title_matches})
-            mismatches = mismatches or not title_matches
-        if metadata_year is not None:
-            year_matches = source.year == metadata_year
-            comparisons.append(
-                {"field": "year", "matches": year_matches, "metadata_year": metadata_year}
-            )
-            mismatches = mismatches or not year_matches
+        mismatch_fields: list[str] = []
+        missing_fields: list[str] = []
 
-        if not comparisons:
-            status = source.verification
-        elif mismatches:
+        returned_doi = message.get("DOI")
+        if isinstance(returned_doi, str) and returned_doi.strip():
+            doi_matches = normalise_doi(returned_doi) == source.doi
+            comparisons.append({"field": "doi", "matches": doi_matches})
+            if not doi_matches:
+                mismatch_fields.append("doi")
+
+        if metadata_title is not None:
+            clean_title = sanitize_untrusted_text(metadata_title, max_chars=500).text
+            if clean_title:
+                title_matches = _normal_title(source.title) == _normal_title(clean_title)
+                comparisons.append({"field": "title", "matches": title_matches})
+                if not title_matches:
+                    mismatch_fields.append("title")
+            else:
+                missing_fields.append("title")
+        else:
+            missing_fields.append("title")
+        if years:
+            year_matches = source.year in years
+            comparisons.append({"field": "year", "matches": year_matches, "metadata_years": years})
+            if not year_matches:
+                mismatch_fields.append("year")
+        else:
+            missing_fields.append("year")
+
+        if mismatch_fields:
             status = VerificationStatus.MISMATCH
+        elif missing_fields:
+            status = VerificationStatus.UNKNOWN
         else:
             status = VerificationStatus.VERIFIED
-        return self._result(source, status, comparisons, metadata_available=bool(comparisons))
+        return self._result(source, status, comparisons, mismatch_fields, missing_fields)
 
     def _result(
         self,
         source: SourceCard,
         status: VerificationStatus,
         comparisons: list[dict[str, Any]],
-        *,
-        metadata_available: bool,
+        mismatch_fields: list[str],
+        missing_fields: list[str],
     ) -> ToolResult:
         updated = source.model_copy(update={"verification": status})
         payload = {
-            "updated_source": {
-                "id": updated.id,
-                "title": updated.title,
-                "year": updated.year,
-                "doi": updated.doi,
-                "verification": status.value,
-            },
-            "metadata_compared": metadata_available,
+            "verified": status is VerificationStatus.VERIFIED,
+            "mismatch_fields": mismatch_fields,
+            "missing_fields": missing_fields,
+            "updated_source": updated.model_dump(mode="json"),
+            "source_update": {"id": updated.id, "verification": status.value},
+            "metadata_compared": bool(comparisons),
             "comparisons": comparisons,
         }
-        return ToolResult(
-            tool=self.name,
-            content=json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-        )
+        content = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        if len(content) > 7_500:
+            # Keep a usable verification delta rather than let the registry cut JSON
+            # mid-document when an unusually large but valid SourceCard is supplied.
+            payload["updated_source"] = None
+            content = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+            return ToolResult(tool=self.name, content=content, truncated=True)
+        return ToolResult(tool=self.name, content=content)
 
     async def aclose(self) -> None:
         """Close the internally created HTTP client only."""
