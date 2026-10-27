@@ -1,0 +1,101 @@
+{
+  "goal": "A research article on token-frugal agentic writing that passes all 8 hard gates at Q >= 70.",
+  "tasks": [
+    {
+      "key": "T1",
+      "title": "Outline the article structure",
+      "role": "architect",
+      "section_ids": [
+        "introduction",
+        "related-work",
+        "methodology",
+        "results",
+        "discussion",
+        "limitations",
+        "conclusion",
+        "references"
+      ],
+      "instructions": "Produce a section outline with a word target per section and the one claim each section must establish.",
+      "acceptance": [
+        "Every required section of the research rubric has a title and a word target",
+        "The outline names the gap the article answers in one sentence"
+      ],
+      "token_budget": 1000,
+      "depends_on": []
+    },
+    {
+      "key": "T2",
+      "title": "Card sources for related work and method",
+      "role": "researcher",
+      "section_ids": ["related-work", "methodology"],
+      "instructions": "Find primary sources for the related-work and methodology sections and record one locatable SourceCard per source. Do not write prose.",
+      "acceptance": [
+        "Every card has a DOI or a URL and a snippet of at most 60 words",
+        "At least six sources cover both supportive and dissenting work"
+      ],
+      "token_budget": 8000,
+      "depends_on": ["T1"]
+    },
+    {
+      "key": "T3",
+      "title": "Draft introduction and related work",
+      "role": "writer",
+      "section_ids": ["introduction", "related-work"],
+      "instructions": "Draft both sections as patches against the empty sections. Cite only cards that exist; open an issue when a claim has no card.",
+      "acceptance": [
+        "Each section is within 10 percent of its word target",
+        "Every in-text citation resolves to an existing SourceCard"
+      ],
+      "token_budget": 12000,
+      "depends_on": ["T2"]
+    },
+    {
+      "key": "T4",
+      "title": "Draft methodology and results",
+      "role": "writer",
+      "section_ids": ["methodology", "results"],
+      "instructions": "Draft both sections as patches, describing only the procedure and numbers present in the brief or the cards.",
+      "acceptance": [
+        "The procedure is reproducible from the text alone",
+        "No number appears that is absent from the brief or a source card"
+      ],
+      "token_budget": 12000,
+      "depends_on": ["T3"]
+    },
+    {
+      "key": "T5",
+      "title": "Review the four drafted sections",
+      "role": "reviewer",
+      "section_ids": ["introduction", "related-work", "methodology", "results"],
+      "instructions": "Assess evidence, reasoning and clarity against each task's acceptance list. Set section status; do not rewrite prose.",
+      "acceptance": [
+        "Every open high-severity issue names a section and a fix of at most 30 words",
+        "Reviewed sections move to reviewed status or keep a listed issue"
+      ],
+      "token_budget": 6000,
+      "depends_on": ["T4"]
+    },
+    {
+      "key": "T6",
+      "title": "Validate the article against the rubric",
+      "role": "validator",
+      "section_ids": [
+        "introduction",
+        "related-work",
+        "methodology",
+        "results",
+        "discussion",
+        "limitations",
+        "conclusion",
+        "references"
+      ],
+      "instructions": "Measure the article, report all 8 hard gates and score every soft criterion. Flag any reference left unverified.",
+      "acceptance": [
+        "All 8 hard gates are reported with evidence",
+        "Every soft criterion carries a score between 0 and 100"
+      ],
+      "token_budget": 3000,
+      "depends_on": ["T5"]
+    }
+  ]
+}
