@@ -24,6 +24,7 @@ if str(_BACKEND_ROOT) not in sys.path:
 
 from app.accounts.models import Base  # noqa: E402
 from app.core.settings import Settings  # noqa: E402
+from app.projects.models import ProjectRow  # noqa: E402,F401  (registers the projects table)
 
 config = context.config
 if config.config_file_name is not None:

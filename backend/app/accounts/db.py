@@ -33,7 +33,15 @@ def create_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 
 def init_db(engine: Engine) -> None:
-    """Create every table if missing. Dev/test convenience; prod runs Alembic."""
+    """Create every table if missing. Dev/test convenience; prod runs Alembic.
+
+    The import is local on purpose: this module owns the *account* store's engine,
+    and the projects table merely shares the same metadata. Importing it here (rather
+    than at module scope) keeps ``app.accounts`` from depending on ``app.projects`` at
+    import time while still making ``init_db`` create the full schema a request needs.
+    """
+    from app.projects.models import ProjectRow  # noqa: F401  (registers the table)
+
     Base.metadata.create_all(engine)
 
 
