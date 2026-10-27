@@ -69,7 +69,7 @@ client, one router and one component set:
 | never render or store secrets; no `localStorage` beyond the session | the shell keeps the JWT in module memory; no new persistence was added and no screen renders key material |
 | loading, empty and error states | every panel: explicit loading copy, an empty sentence, and an error with Retry (the SSE panel adds Reconnect) |
 | keyboard accessible | modal focus trap + Escape + first-radio focus, labelled controls, `aria-invalid`/`aria-describedby` per field, focus to the first invalid control, chart table twin |
-| Vitest unit tests | 47 tests in 9 files (Brief validation, wizard, run view, checkpoint decision, stop report, article viewer, export, routing, app walk, SSE hook) |
+| Vitest unit tests | 48 tests in 9 files (Brief validation, wizard, run view, checkpoint decision, stop report, article viewer, export, routing, app walk, SSE hook) |
 | Playwright smoke test for the key flows | `playwright/step-10b.spec.ts` + a config-driven `webServer` on the mock; CI job added (advisory until it can be observed green — see below) |
 
 ## Bugs fixed in the shell
@@ -90,7 +90,7 @@ no duplicates).
 
 ```
 make check              ruff + mypy --strict + skill lint + pytest  -> 1162 passed, 8 skipped
-make frontend-check     tsc --noEmit + vitest run + vite build      -> 47 passed, built in 1.68s
+make frontend-check     tsc --noEmit + vitest run + vite build      -> 48 passed, built in 1.57s
 secret scan             no secret-shaped string anywhere
 dev-server smoke        projects (2 seeded) -> run state/options -> SSE frame -> article (9 sections)
 ```

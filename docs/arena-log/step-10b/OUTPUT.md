@@ -149,12 +149,12 @@ test     vitest run
            ✓ src/__tests__/runPage.test.tsx          (6)
            ✓ src/__tests__/articleViewer.test.tsx    (6)
            ✓ src/__tests__/projectFlow.test.tsx      (8)
-           ✓ src/__tests__/appRoutes.test.tsx        (3)
+           ✓ src/__tests__/appRoutes.test.tsx        (4)
            ✓ src/__tests__/useEventSource.test.tsx   (1)
            ✓ src/__tests__/routing.test.ts           (4)
            ✓ src/__tests__/exportMarkdown.test.ts    (3)
-         Test Files  8 passed (8)
-              Tests  47 passed (47)
+         Test Files  9 passed (9)
+              Tests  48 passed (48)
 build    vite build -> dist/index.html 0.57 kB, js 271.46 kB (gzip 82.84 kB)
 ```
 

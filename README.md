@@ -171,7 +171,7 @@ budget, Edit goals, Roll back; focus-trapped, Escape closes, `needs_input` opens
 versions, `dir=rtl` + `lang` for `fa`/`ar`) and **Export .md** (DOCX/PDF stay deferred and
 visibly disabled). Everything renders from the OpenAPI-generated client; the bearer token
 stays in memory and no key material is drawn anywhere. `make frontend-check` is the gate
-(tsc, 47 Vitest tests, Vite build); `make frontend-e2e` runs the Playwright smoke test of
+(tsc, 48 Vitest tests, Vite build); `make frontend-e2e` runs the Playwright smoke test of
 project -> run -> checkpoint -> article -> export against the in-memory mock
 (`VITE_API_MOCK=true`). This step also fixes a real bug in the shell's SSE hook: its
 `connect()` could never open a stream because the "closed" flag was never cleared.
