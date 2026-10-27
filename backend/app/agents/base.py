@@ -242,9 +242,15 @@ class Agent:
 
     #: The role this agent executes. A subclass must set it.
     role: ClassVar[AgentRole]
+    #: Opt-out for a shared base whose *concrete* subclasses supply ``role`` (Step 7's
+    #: ``RoleAgent``). Declared in the class body on purpose: the flag does not inherit,
+    #: so a role class that forgets ``role`` still fails at import time.
+    abstract_agent_base: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
+        if cls.__dict__.get("abstract_agent_base", False):
+            return
         if not isinstance(getattr(cls, "role", None), AgentRole):
             raise TypeError("Agent subclasses must define role: ClassVar[AgentRole]")
 
@@ -294,8 +300,12 @@ class Agent:
                 task_id=task.id,
             )
         binding = self._resolve_binding()
+        # Role hook: deterministic material a role must see (tool results, section
+        # text, gate reports) is computed *before* the prompt is assembled. The
+        # generic runtime knows nothing about it and only carries the blocks.
+        extra_blocks = tuple(await self.prepare(task, run_state))
         context = self._context_builder.build(task=task, run_state=run_state)
-        request = self._build_request(context, binding)
+        request = self._build_request(context, binding, extra_blocks=extra_blocks)
 
         usage = TokenUsage(**_ZERO_USAGE)
         response = await self._generate(request, binding, task)
@@ -319,7 +329,34 @@ class Agent:
                     errors=second_failure.errors,
                     tokens=usage,
                 ) from second_failure
-        return self._finalise(result, run_state=run_state, usage=usage)
+        final = self._finalise(result, run_state=run_state, usage=usage)
+        # Role hook: the validator must publish a QualityReport it computed from tool
+        # output, not the one a model guessed. Post-processing runs after accounting so
+        # the entry's token usage is already the measured value.
+        return self.postprocess(final, task=task, run_state=run_state)
+
+    # -- role hooks -------------------------------------------------------
+    async def prepare(self, task: Task, run_state: RunState) -> Sequence[SystemBlock]:
+        """Deterministic material to add to the prompt for this run.
+
+        The generic runtime calls this once, after the binding is resolved and before
+        the context is built, and appends whatever blocks come back to the system
+        prefix. Concrete roles use it for what only they may look at: tool output
+        (researcher), section text (writer/reviewer/validator) and gate packs
+        (validator). The base implementation adds nothing.
+        """
+        return ()
+
+    def postprocess(self, result: AgentResult, *, task: Task, run_state: RunState) -> AgentResult:
+        """Last chance for a role to make its result deterministic.
+
+        Called once, after the envelope validated and the runtime replaced the
+        model-claimed accounting. It may add or replace contract-valid parts
+        (``report``, ``sections``, ``source_cards``) but never article text; the
+        generic runtime never changes anything here.
+        """
+        _ = (task, run_state)
+        return result
 
     # -- steps ------------------------------------------------------------
     def _resolve_binding(self) -> AgentBinding:
@@ -340,13 +377,28 @@ class Agent:
             )
         return binding
 
-    def _build_request(self, context: AgentContext, binding: AgentBinding) -> LLMRequest:
+    def _output_schema(self) -> dict[str, Any]:
+        """The JSON schema the model's answer is constrained to.
+
+        The generic runtime sends the ``AgentResult`` schema. A role agent whose answer
+        carries a second, role-specific document widens this to the combined schema, so
+        the constrained output and the validated payload can never drift apart.
+        """
+        return agent_output_schema()
+
+    def _build_request(
+        self,
+        context: AgentContext,
+        binding: AgentBinding,
+        *,
+        extra_blocks: Sequence[SystemBlock] = (),
+    ) -> LLMRequest:
         """One request: the stable prefix, the task message, the binding's cap."""
         return LLMRequest(
-            system_blocks=list(context.system_blocks),
+            system_blocks=[*context.system_blocks, *extra_blocks],
             messages=list(context.messages),
             max_output_tokens=binding.max_output_tokens,
-            json_schema=agent_output_schema(),
+            json_schema=self._output_schema(),
         )
 
     @staticmethod
@@ -371,8 +423,21 @@ class Agent:
         return await self._provider.generate(request, model=binding.model, role=self.role.value)
 
     def _validate_payload(self, text: str, *, task: Task, run_state: RunState) -> AgentResult:
-        """Parse, normalise, validate against AgentResult and the patch scope rules."""
-        payload = parse_agent_json(text)
+        """Parse the model's answer and validate it as a contract document."""
+        return self._validate_document(
+            parse_agent_json(text), raw_text=text, task=task, run_state=run_state
+        )
+
+    def _validate_document(
+        self, payload: dict[str, Any], *, raw_text: str, task: Task, run_state: RunState
+    ) -> AgentResult:
+        """Validate one parsed JSON object against ``AgentResult`` and the scope rules.
+
+        ``raw_text`` is the untouched answer: a role that reads a sibling document from
+        the same object (the role-output envelope) can still quote it, while the base
+        runtime only ever looks at the contract shape.
+        """
+        _ = raw_text
         payload = self._normalise(payload, run_state=run_state)
         try:
             result = AgentResult.model_validate(payload)
@@ -492,7 +557,7 @@ class Agent:
             system_blocks=[SystemBlock(text=REPAIR_SYSTEM_PROMPT, cache=True)],
             messages=[LLMMessage(role=MessageRole.USER, text="\n".join(lines))],
             max_output_tokens=binding.max_output_tokens,
-            json_schema=agent_output_schema(),
+            json_schema=self._output_schema(),
         )
 
     def _bounded_previous(self, previous: str) -> str:

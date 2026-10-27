@@ -40,12 +40,15 @@ backend/app/
   providers/   LLMProvider Protocol, ProviderError family, MockProvider, live
                adapters (Anthropic, OpenAI-compatible), call-time account pool
   accounts/    encrypted account store, argon2+JWT auth, bindings, usage, audit
+  projects/    project CRUD surface: brief + policy overrides, keyset pagination,
+               RunsQuery seam (active-run guard for PATCH/DELETE)
   memory/      append-only ledger, bounded digest, compactor, source store
   article/     section store, patch application, versioning, snapshots, assembly
   agents/      generic Agent runtime, context builder, registry, governor seam
   skills/      lazy SKILL.md loader, deterministic selection, lint CLI
   tools/       deny-by-default scoped tool registry (concrete tools: Step 6)
-  api/         FastAPI: health, config, contracts, auth, accounts, agent bindings
+  api/         FastAPI: health, config, contracts, auth, accounts, agent bindings,
+               projects, runs
   governor/    nested budgets, token estimator, cache-friendly context, telemetry,
                model tiers
   planner/     plan/delta/evaluate (never writes article text)
@@ -107,6 +110,19 @@ detail, optional skills, source-card notes) and refusing rather than cutting the
 concrete tools (Step 6), the five role agents (Step 7), the Planner, and the loop
 controller.
 
+Step 7 (role agents) complete: `app/agents/roles/` implements architect, researcher,
+writer, reviewer and validator on the Step 5 runtime. Each role owns a prompt asset
+(`prompts/<role>.md`) and a rules file (`rules/agents/<role>.rules.md`, ≤ 400 tokens),
+returns a strict JSON answer validated as `AgentResult` plus a role document, and
+enforces its own acceptance checks deterministically: the architect plans rubric section
+ids whose targets add up to the brief, the researcher may only return cards a
+`scholar_search` result (or the source store) actually holds, the writer owns one section
+per task and may only cite supplied cards inside the word window, the reviewer reads
+dirty sections only and cannot emit prose or a patch, and the validator sets the eight
+hard gates from `text_checks`/`citation_check`/`doi_verify` and computes `Q` from the
+reviewer's latest scores. `prompts/<role>.golden.json` holds one worked input→answer per
+role, replayed by the test-suite through `MockProvider`.
+
 Step 8 (planner) complete: `app/planner/` plans and evaluates and never writes article
 text. `PlanValidator` owns the mandatory distribution (one valid role per task, a DAG,
 acceptance criteria and a positive budget per task, at most 8 tasks, the summed budgets
@@ -122,3 +138,16 @@ events (run start, empty queue, a newly failing gate, a completed milestone, the
 plateau - which buys the one strategy change), at most once per iteration. Prompts live in
 `app/planner/prompts.py` under a 700-token ceiling with capped output and JSON-schema
 answers, mirrored in `prompts/planner/` and pinned by tests.
+
+Step 11 (projects) complete: `app/projects/` stores a project as a real row (Alembic
+revision `0002_projects`): id, owner, name, description, the CONTRACTS v1 `Brief` it
+writes against, a validated policy-override block, status and timestamps.
+`/api/projects` offers create, keyset-paginated list (`limit` + opaque `cursor`,
+newest first), read, patch and delete, all owner-scoped with foreign ids reading as
+404. A bad brief or policy override is a 422 whose `context.errors[]` names each
+offending field (`brief.target_words`, `policy_overrides.q_min`) and never echoes a
+submitted value. PATCH and DELETE answer 409 `conflict` with
+`context.reason=active_run` while a run of the project is still working, read through
+the `RunsQuery` Protocol (in-memory fake for tests, `StoreRunsQuery` over the persisted
+run records in production); a `CHECKPOINT` run does not block an edit, because the
+loop is waiting for the user.

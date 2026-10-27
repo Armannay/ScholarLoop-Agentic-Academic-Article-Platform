@@ -1,1 +1,147 @@
-{"input":{"role":"researcher","question":"Example research question"},"expected":{"findings":[],"no_results":true}}
+{
+  "role": "researcher",
+  "notes": "Two located cards with one two-sentence finding each; both cards already exist in the run state, so the fixture also exercises card reuse.",
+  "input": {
+    "task": {
+      "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "title": "Card sources for related work",
+      "role": "researcher",
+      "section_ids": [
+        "related-work"
+      ],
+      "source_ids": [
+        "01ARZ3NDEKTSV4RRFFQ69G5FC2",
+        "01ARZ3NDEKTSV4RRFFQ69G5FD3"
+      ],
+      "instructions": "Find primary sources on budgeted agentic writing and token-aware scheduling.",
+      "acceptance": [
+        "Every card has a DOI or URL and a snippet of at most 60 words",
+        "Every finding is at most two sentences"
+      ],
+      "token_budget": 60000,
+      "depends_on": []
+    },
+    "iter": 1,
+    "brief": {
+      "topic": "Token-frugal orchestration for agentic academic writing",
+      "article_type": "research",
+      "audience": "graduate students and applied NLP practitioners",
+      "language": "en",
+      "target_words": 4000,
+      "citation_style": "APA7",
+      "must_include": [],
+      "must_avoid": [
+        "claims about model capabilities without evidence"
+      ],
+      "provided_data": [
+        "Pilot run: 11 iterations, 612,400 tokens, Q 68 -> 81."
+      ]
+    },
+    "sections": [
+      {
+        "id": "related-work",
+        "title": "Related Work",
+        "order": 1,
+        "version": 0
+      }
+    ],
+    "sources": [
+      {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FC2",
+        "title": "Budgeted multi-agent writing with a deterministic controller",
+        "authors": [
+          "Nguyen, L.",
+          "Alvarez, R."
+        ],
+        "year": 2024,
+        "venue": "Journal of Applied NLP Systems",
+        "doi": "10.1234/jans.2024.00042",
+        "url": "https://example.org/jans/2024/42",
+        "snippet": "A bounded, reference-passing controller kept prompt growth linear in the number of iterations while reported quality kept improving across eleven drafts.",
+        "verification": "unknown"
+      },
+      {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FD3",
+        "title": "Token-aware scheduling for long-running language-model pipelines",
+        "authors": [
+          "Petrova, M."
+        ],
+        "year": 2023,
+        "venue": "Proceedings of the 2023 Conference on Systems for Machine Learning",
+        "doi": "10.5555/sysml.2023.117",
+        "url": null,
+        "snippet": "Scheduling on token estimates rather than wall time held tail latency flat as the number of pipeline stages grew, at a small cost in throughput.",
+        "verification": "unknown"
+      }
+    ],
+    "texts": []
+  },
+  "expected": {
+    "result": {
+      "entry": {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FB1",
+        "iter": 1,
+        "task_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "role": "researcher",
+        "targets": [
+          "related-work"
+        ],
+        "summary": "Carded two sources on budgeted agentic writing and token-aware scheduling, with one finding each.",
+        "tokens": {
+          "in": 0,
+          "out": 0,
+          "cached": 0
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      "patches": [],
+      "source_cards": [
+        {
+          "id": "01ARZ3NDEKTSV4RRFFQ69G5FC2",
+          "title": "Budgeted multi-agent writing with a deterministic controller",
+          "authors": [
+            "Nguyen, L.",
+            "Alvarez, R."
+          ],
+          "year": 2024,
+          "venue": "Journal of Applied NLP Systems",
+          "doi": "10.1234/jans.2024.00042",
+          "url": "https://example.org/jans/2024/42",
+          "snippet": "A bounded, reference-passing controller kept prompt growth linear in the number of iterations while reported quality kept improving across eleven drafts.",
+          "verification": "unknown"
+        },
+        {
+          "id": "01ARZ3NDEKTSV4RRFFQ69G5FD3",
+          "title": "Token-aware scheduling for long-running language-model pipelines",
+          "authors": [
+            "Petrova, M."
+          ],
+          "year": 2023,
+          "venue": "Proceedings of the 2023 Conference on Systems for Machine Learning",
+          "doi": "10.5555/sysml.2023.117",
+          "url": null,
+          "snippet": "Scheduling on token estimates rather than wall time held tail latency flat as the number of pipeline stages grew, at a small cost in throughput.",
+          "verification": "unknown"
+        }
+      ],
+      "sections": [],
+      "report": null
+    },
+    "output": {
+      "findings": [
+        {
+          "source_id": "01ARZ3NDEKTSV4RRFFQ69G5FC2",
+          "finding": "A reference-passing controller kept prompt growth linear in iteration count while reported quality improved over eleven drafts. The authors treat the token budget as a design constraint rather than a post-hoc cost."
+        },
+        {
+          "source_id": "01ARZ3NDEKTSV4RRFFQ69G5FD3",
+          "finding": "Scheduling on token estimates instead of wall time held tail latency flat as pipeline stages grew. The trade is a small throughput loss for predictable spend."
+        }
+      ],
+      "no_results": false,
+      "note": null
+    }
+  }
+}

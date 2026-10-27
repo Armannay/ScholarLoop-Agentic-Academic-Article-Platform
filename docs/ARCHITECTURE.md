@@ -22,7 +22,7 @@ patches, not rewrites; JSON-schema outputs with hard `max_tokens`.
 | Governor | `app/governor/` | nested budgets, estimation, prompt assembly, telemetry, model tiers |
 | Memory | `app/memory/` | append-only ledger, bounded digest, compaction |
 | Article | `app/article/` | section store, patch application, versioning |
-| Agents | `app/agents/` | generic runtime, context builder, registry (role agents: Step 7) |
+| Agents | `app/agents/` | generic runtime, context builder, registry, the five role agents |
 | Skills | `app/skills/` | lazy `SKILL.md` loader, deterministic selection, lint |
 | Tools | `app/tools/` | scoped registry: role/project grants, untrusted bounded results |
 | Planner | `app/planner/` | plan construction and verdict evaluation (LLM, JSON-schema) |
@@ -63,6 +63,16 @@ is never converted into a repair. `agents/registry.py` maps roles to agents, res
 `skills/loader.py` keeps bodies out of the prompt until selected (at most two,
 deterministic, budgeted), and `tools/base.py` denies by default, narrows per project,
 validates arguments and returns size-capped untrusted results.
+
+### Role agents (implemented)
+
+`app/agents/roles/` builds the five roles on that runtime. Each answers with two documents
+in one JSON object - the frozen `AgentResult` plus the role document v1 has no field for -
+constrained by one schema, then checked deterministically: rubric
+ids and word targets, no card the search did not return, one section with supplied
+citations inside ±10 % words, dirty sections only and no patch, and gates from tools with
+`Q` from reviewer scores. Text arrives through an injected provider; scores travel through
+a hash-keyed scoreboard, so they carry forward only while the text is unchanged.
 
 The account store
 (`app/accounts/`) holds provider keys encrypted at rest (AES-GCM envelope,
