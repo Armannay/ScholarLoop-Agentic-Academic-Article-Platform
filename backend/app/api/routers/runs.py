@@ -42,23 +42,14 @@ from fastapi.responses import StreamingResponse
 from pydantic import Field, model_validator
 
 from app.accounts.service import SqlAccountResolver
-from app.agents.base import Agent
 from app.agents.binding import UserBindingResolver
-from app.agents.context import DefaultContextBuilder, load_role_rules
 from app.agents.governor import CallBudgetGovernor
 from app.agents.pool import PoolAgentProvider
 from app.agents.registry import AgentRegistry
-from app.agents.roles import (
-    ArchitectAgent,
-    ResearcherAgent,
-    ReviewerAgent,
-    ValidatorAgent,
-    WriterAgent,
-)
+from app.agents.roles.factory import register_role_agents
 from app.api.deps import CurrentUserDep, get_policies_dep, get_pool, get_rubric_dep
 from app.contracts.brief import Brief
 from app.contracts.common import Contract, Ulid
-from app.contracts.enums import AgentRole
 from app.contracts.ledger import ChangeEntry
 from app.contracts.loop import LoopDecision
 from app.contracts.plan import Plan
@@ -71,18 +62,13 @@ from app.orchestrator.stop import OnComplete, StopReport, UserDecision
 from app.planner.context import build_planner_contexts
 from app.planner.service import PlannerService
 from app.skills.loader import SkillLoader
+from app.tools.base import ToolRegistry
+from app.tools.registry import build_tool_registry
 
 __all__ = ["router"]
 
 router = APIRouter(prefix="/api", tags=["runs"])
 
-_ROLE_AGENTS: dict[AgentRole, type[Agent]] = {
-    AgentRole.ARCHITECT: ArchitectAgent,
-    AgentRole.RESEARCHER: ResearcherAgent,
-    AgentRole.WRITER: WriterAgent,
-    AgentRole.REVIEWER: ReviewerAgent,
-    AgentRole.VALIDATOR: ValidatorAgent,
-}
 _SSE_POLL_SECONDS = 0.25
 # Planner completion ceiling when wiring contexts; the binding re-caps per call.
 _PLANNER_MAX_OUTPUT_TOKENS = 4_096
@@ -195,6 +181,15 @@ def _run_store(request: Request) -> FileRunStore:
     return store
 
 
+def _tool_registry(request: Request) -> ToolRegistry:
+    """The Step 6 tool set, built once per app (pure, deterministic, no credentials)."""
+    tools: ToolRegistry | None = getattr(request.app.state, "tool_registry", None)
+    if tools is None:
+        tools = build_tool_registry()
+        request.app.state.tool_registry = tools
+    return tools
+
+
 def _manager_for(request: Request, user_id: str) -> RunManager:
     """The caller's run manager, built once per (app, user) and cached.
 
@@ -219,20 +214,21 @@ def _manager_for(request: Request, user_id: str) -> RunManager:
     skills = SkillLoader(settings.skills_path)
 
     registry = AgentRegistry(bindings=bindings)
-    for role, agent_class in _ROLE_AGENTS.items():
-
-        def _factory(role: AgentRole = role, agent_class: type[Agent] = agent_class) -> Agent:
-            root_rules, role_rules = load_role_rules(settings.rules_path, role)
-            return agent_class(
-                provider=provider,
-                bindings=bindings,
-                governor=governor,
-                context_builder=DefaultContextBuilder(
-                    skills=skills, rules=(root_rules, role_rules)
-                ),
-            )
-
-        registry.register(role, _factory)
+    # One wiring path for the five roles: root rules + role rules + role prompt, the
+    # deterministic Step 6 tools, the rubric, and a scoreboard the reviewer writes and
+    # the validator reads. Run-scoped section *text* is not available at wiring time
+    # (it lives in the run's article store), so a role that must see the text refuses
+    # with a ConfigError naming the provider rather than reviewing an empty article.
+    register_role_agents(
+        registry,
+        provider=provider,
+        bindings=bindings,
+        governor=governor,
+        skills=skills,
+        rules_dir=settings.rules_path,
+        rubric=rubric,
+        tools=_tool_registry(request),
+    )
 
     planner_service = PlannerService(
         provider=provider,

@@ -107,6 +107,19 @@ detail, optional skills, source-card notes) and refusing rather than cutting the
 concrete tools (Step 6), the five role agents (Step 7), the Planner, and the loop
 controller.
 
+Step 7 (role agents) complete: `app/agents/roles/` implements architect, researcher,
+writer, reviewer and validator on the Step 5 runtime. Each role owns a prompt asset
+(`prompts/<role>.md`) and a rules file (`rules/agents/<role>.rules.md`, ≤ 400 tokens),
+returns a strict JSON answer validated as `AgentResult` plus a role document, and
+enforces its own acceptance checks deterministically: the architect plans rubric section
+ids whose targets add up to the brief, the researcher may only return cards a
+`scholar_search` result (or the source store) actually holds, the writer owns one section
+per task and may only cite supplied cards inside the word window, the reviewer reads
+dirty sections only and cannot emit prose or a patch, and the validator sets the eight
+hard gates from `text_checks`/`citation_check`/`doi_verify` and computes `Q` from the
+reviewer's latest scores. `prompts/<role>.golden.json` holds one worked input→answer per
+role, replayed by the test-suite through `MockProvider`.
+
 Step 8 (planner) complete: `app/planner/` plans and evaluates and never writes article
 text. `PlanValidator` owns the mandatory distribution (one valid role per task, a DAG,
 acceptance criteria and a positive budget per task, at most 8 tasks, the summed budgets

@@ -1,1 +1,225 @@
-{"input":{"role":"architect","topic":"Example topic"},"expected":{"sections":[{"id":"introduction","title":"Introduction","goal":"Frame the question","target_words":300,"key_claims":[],"required_sources":[]}]}}
+{
+  "role": "architect",
+  "notes": "First-pass outline for a research article at 4000 target words; the section targets sum to 4500, inside the ±15 percent gate.",
+  "input": {
+    "task": {
+      "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "title": "Outline the article structure",
+      "role": "architect",
+      "section_ids": [],
+      "source_ids": [],
+      "instructions": "Produce a section outline with a word target and the claims each section must establish.",
+      "acceptance": [
+        "Every required research section has a title and a word target",
+        "The targets sum to the brief's target words within 15 percent"
+      ],
+      "token_budget": 60000,
+      "depends_on": []
+    },
+    "iter": 1,
+    "brief": {
+      "topic": "Token-frugal orchestration for agentic academic writing",
+      "article_type": "research",
+      "audience": "graduate students and applied NLP practitioners",
+      "language": "en",
+      "target_words": 4000,
+      "citation_style": "APA7",
+      "must_include": [],
+      "must_avoid": [
+        "claims about model capabilities without evidence"
+      ],
+      "provided_data": [
+        "Pilot run: 11 iterations, 612,400 tokens, Q 68 -> 81."
+      ]
+    },
+    "sections": [],
+    "sources": [],
+    "texts": []
+  },
+  "expected": {
+    "result": {
+      "entry": {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FB1",
+        "iter": 1,
+        "task_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "role": "architect",
+        "targets": [
+          "introduction",
+          "related-work",
+          "methodology",
+          "results",
+          "discussion",
+          "limitations",
+          "conclusion",
+          "references"
+        ],
+        "summary": "Planned eight research sections from the rubric; targets sum to 4500 words, inside the brief's tolerance.",
+        "tokens": {
+          "in": 0,
+          "out": 0,
+          "cached": 0
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      "patches": [],
+      "source_cards": [],
+      "sections": [
+        {
+          "id": "introduction",
+          "title": "Introduction",
+          "order": 0
+        },
+        {
+          "id": "related-work",
+          "title": "Related Work",
+          "order": 1
+        },
+        {
+          "id": "methodology",
+          "title": "Methodology",
+          "order": 2
+        },
+        {
+          "id": "results",
+          "title": "Results",
+          "order": 3
+        },
+        {
+          "id": "discussion",
+          "title": "Discussion",
+          "order": 4
+        },
+        {
+          "id": "limitations",
+          "title": "Limitations",
+          "order": 5
+        },
+        {
+          "id": "conclusion",
+          "title": "Conclusion",
+          "order": 6
+        },
+        {
+          "id": "references",
+          "title": "References",
+          "order": 7
+        }
+      ],
+      "report": null
+    },
+    "output": {
+      "sections": [
+        {
+          "id": "introduction",
+          "title": "Introduction",
+          "goal": "Frame the question and state the contribution.",
+          "target_words": 700,
+          "key_claims": [
+            "Iterative writing needs a token budget, not only a quality target.",
+            "A reference-passing controller keeps prompt cost linear in iteration count."
+          ],
+          "required_sources": [
+            "One source on agentic writing controllers.",
+            "One source on cost-aware orchestration."
+          ]
+        },
+        {
+          "id": "related-work",
+          "title": "Related Work",
+          "goal": "Place the controller among agentic writing and scheduling work.",
+          "target_words": 800,
+          "key_claims": [
+            "Earlier systems optimise output quality and ignore context growth.",
+            "Token-aware scheduling treats cost as a first-class constraint."
+          ],
+          "required_sources": [
+            "Nguyen and Alvarez (2024).",
+            "Petrova (2023)."
+          ]
+        },
+        {
+          "id": "methodology",
+          "title": "Methodology",
+          "goal": "Describe the controller, the ledger and the measurement.",
+          "target_words": 950,
+          "key_claims": [
+            "Five roles execute a plan written by a planning-only model.",
+            "Every call reserves tokens before it runs and settles after."
+          ],
+          "required_sources": [
+            "The system description in this article.",
+            "The pilot run data from the brief."
+          ]
+        },
+        {
+          "id": "results",
+          "title": "Results",
+          "goal": "Report the pilot run: iterations, spend and Q.",
+          "target_words": 750,
+          "key_claims": [
+            "Eleven iterations reached Q 81 from Q 68.",
+            "Total spend stayed inside one run budget."
+          ],
+          "required_sources": [
+            "Pilot run data from the brief."
+          ]
+        },
+        {
+          "id": "discussion",
+          "title": "Discussion",
+          "goal": "Explain why the trade holds and when it would not.",
+          "target_words": 800,
+          "key_claims": [
+            "Linear prompt growth explains the flat cost per iteration.",
+            "The design fails when sources must be re-read rather than referenced."
+          ],
+          "required_sources": [
+            "Nguyen and Alvarez (2024).",
+            "Petrova (2023)."
+          ]
+        },
+        {
+          "id": "limitations",
+          "title": "Limitations",
+          "goal": "State what one pilot run cannot establish.",
+          "target_words": 200,
+          "key_claims": [
+            "One pilot run cannot separate the controller from the model used.",
+            "Quality was scored by a model, not by expert readers."
+          ],
+          "required_sources": [
+            "Limitations of the evaluation in this article."
+          ]
+        },
+        {
+          "id": "conclusion",
+          "title": "Conclusion",
+          "goal": "Restate the contribution and the next measurement.",
+          "target_words": 300,
+          "key_claims": [
+            "Budgeted orchestration makes iteration cost visible and comparable.",
+            "The next step is a reader study on the same ledger."
+          ],
+          "required_sources": [
+            "The article's own findings."
+          ]
+        },
+        {
+          "id": "references",
+          "title": "References",
+          "goal": "Hold the reference list generated from source cards.",
+          "target_words": 0,
+          "key_claims": [
+            "Every cited card has one entry.",
+            "No entry appears without a citation."
+          ],
+          "required_sources": [
+            "All source cards cited in the text."
+          ]
+        }
+      ]
+    }
+  }
+}

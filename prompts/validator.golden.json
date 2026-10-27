@@ -1,1 +1,122 @@
-{"input":{"role":"validator","tool_gates":{"no_placeholders":true}},"expected":{"subjective_checks":{"coherence":true},"rationale":["Deterministic check passed"]}}
+{
+  "role": "validator",
+  "notes": "Subjective answers only: the report, the gates and Q are computed in postprocess from tool output and the reviewer's scores. The fixture's article deliberately fails three gates (missing sections, abstract, total length).",
+  "input": {
+    "task": {
+      "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "title": "Validate the article",
+      "role": "validator",
+      "section_ids": [],
+      "source_ids": [],
+      "instructions": "Run the deterministic checks and answer the subjective questions from the text.",
+      "acceptance": [
+        "Every hard gate is reported",
+        "Every subjective check is answered"
+      ],
+      "token_budget": 60000,
+      "depends_on": []
+    },
+    "iter": 1,
+    "brief": {
+      "topic": "Token-frugal orchestration for agentic academic writing",
+      "article_type": "research",
+      "audience": "graduate students and applied NLP practitioners",
+      "language": "en",
+      "target_words": 4000,
+      "citation_style": "APA7",
+      "must_include": [],
+      "must_avoid": [
+        "claims about model capabilities without evidence"
+      ],
+      "provided_data": [
+        "Pilot run: 11 iterations, 612,400 tokens, Q 68 -> 81."
+      ]
+    },
+    "sections": [
+      {
+        "id": "introduction",
+        "title": "Introduction",
+        "order": 0,
+        "version": 1,
+        "hash": "sha256:abababababababababababababababababababababababababababababababab",
+        "words": 130,
+        "status": "reviewed"
+      }
+    ],
+    "sources": [
+      {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FC2",
+        "title": "Budgeted multi-agent writing with a deterministic controller",
+        "authors": [
+          "Nguyen, L.",
+          "Alvarez, R."
+        ],
+        "year": 2024,
+        "venue": "Journal of Applied NLP Systems",
+        "doi": "10.1234/jans.2024.00042",
+        "url": "https://example.org/jans/2024/42",
+        "snippet": "A bounded, reference-passing controller kept prompt growth linear in the number of iterations while reported quality kept improving across eleven drafts.",
+        "verification": "unknown"
+      },
+      {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FD3",
+        "title": "Token-aware scheduling for long-running language-model pipelines",
+        "authors": [
+          "Petrova, M."
+        ],
+        "year": 2023,
+        "venue": "Proceedings of the 2023 Conference on Systems for Machine Learning",
+        "doi": "10.5555/sysml.2023.117",
+        "url": null,
+        "snippet": "Scheduling on token estimates rather than wall time held tail latency flat as the number of pipeline stages grew, at a small cost in throughput.",
+        "verification": "unknown"
+      }
+    ],
+    "texts": [
+      {
+        "id": "introduction",
+        "text": "Agentic writing systems rarely report what their iterations cost, so a quality gain is hard to separate from brute force. Nguyen and Alvarez (2024) describe a controller that passes references instead of full text between agents, which keeps prompt size tied to the number of sections rather than to the length of the draft [[CITE:01ARZ3NDEKTSV4RRFFQ69G5FC2]]. Petrova (2023) reports the same effect in scheduling, where token-aware admission kept tail latency flat as the pipeline grew [[CITE:01ARZ3NDEKTSV4RRFFQ69G5FD3]]. This article asks whether that discipline survives when five specialised agents share one append-only ledger. The pilot run in the brief suggests it does: eleven iterations produced a measurable quality gain while total spend stayed inside a single run budget. The contribution is a controller design that makes the trade visible, and a first measurement."
+      }
+    ]
+  },
+  "expected": {
+    "result": {
+      "entry": {
+        "id": "01ARZ3NDEKTSV4RRFFQ69G5FB1",
+        "iter": 1,
+        "task_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "role": "validator",
+        "targets": [
+          "introduction"
+        ],
+        "summary": "Checked the article: sections, abstract and total length fail; both cards resolve; subjective checks answered.",
+        "tokens": {
+          "in": 0,
+          "out": 0,
+          "cached": 0
+        },
+        "issues_opened": [],
+        "issues_closed": [],
+        "status": "ok"
+      },
+      "patches": [],
+      "source_cards": [],
+      "sections": [],
+      "report": null
+    },
+    "output": {
+      "subjective_checks": {
+        "claims_supported": true,
+        "coherence": true,
+        "methods_clarity": false,
+        "results_match_claims": true,
+        "limitations_and_ethics": false
+      },
+      "rationale": [
+        "Both cited claims resolve to supplied cards.",
+        "The method is named but not described, so methods_clarity is false.",
+        "No limitations are stated in the draft."
+      ]
+    }
+  }
+}
