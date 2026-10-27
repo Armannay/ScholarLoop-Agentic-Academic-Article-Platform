@@ -683,7 +683,7 @@ class Orchestrator:
 
         if failure is None and result.source_cards:
             try:
-                memory.sources.ingest_many(result.source_cards, role=result.entry.role)
+                memory.sources.ingest_many(result.source_cards, role=result.entry.agent_role)
             except ScholarLoopError as exc:
                 failure = "source_card_rejected"
                 self._machine.emit(
@@ -1402,7 +1402,7 @@ class Orchestrator:
         by_role: dict[str, TokenUsage] = {}
         by_iter: dict[str, TokenUsage] = {}
         for entry in record.entries:
-            role = entry.role.value
+            role = entry.role_name
             by_role[role] = _usage_add(by_role.get(role, _zero_usage()), entry.tokens)
             key = str(entry.iter)
             by_iter[key] = _usage_add(by_iter.get(key, _zero_usage()), entry.tokens)

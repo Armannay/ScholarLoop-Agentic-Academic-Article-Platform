@@ -131,6 +131,11 @@ def _build_output_schema() -> dict[str, Any]:
     ``ChangeEntry.iter`` and ``ChangeEntry.tokens`` are overwritten by the runtime, so
     the model is not asked to produce them. Keeping the properties (but dropping them
     from ``required``) lets an older scripted payload still validate.
+
+    ``ChangeEntry.role`` is narrowed back to the five :class:`AgentRole` members: the
+    ledger admits ``'orchestrator'`` for the loop's own rollback/emergency entries, but
+    an agent that emitted it would be refused by :class:`AgentResult` and burn a repair
+    call, so the constrained schema never offers it.
     """
     schema: dict[str, Any] = AgentResult.model_json_schema(mode="validation")
     schema["title"] = "AgentResult"
@@ -145,6 +150,15 @@ def _build_output_schema() -> dict[str, Any]:
                 "One agent action. `iter` and `tokens` are filled by the runtime with "
                 "the measured iteration and token usage; do not compute them."
             )
+            properties = entry.get("properties")
+            if isinstance(properties, dict) and "role" in properties:
+                properties["role"] = {
+                    "$ref": "#/$defs/AgentRole",
+                    "description": (
+                        "Your role: one of the five agent roles. 'orchestrator' is "
+                        "reserved for the loop itself and is never a valid answer."
+                    ),
+                }
     return schema
 
 
@@ -366,9 +380,9 @@ class Agent:
             raise _InvalidOutput(_pydantic_problems(exc)) from exc
 
         problems: list[str] = []
-        if result.entry.role is not task.role:
+        if result.entry.role != task.role:
             problems.append(
-                f"entry.role: expected '{task.role.value}', got '{result.entry.role.value}'"
+                f"entry.role: expected '{task.role.value}', got '{result.entry.role_name}'"
             )
         if result.entry.task_id != task.id:
             problems.append(

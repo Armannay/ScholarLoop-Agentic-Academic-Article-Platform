@@ -18,6 +18,7 @@ from app.contracts.binding import AgentBinding
 from app.contracts.brief import Brief
 from app.contracts.common import SCHEMA_VERSION, Contract, VersionedContract, word_count
 from app.contracts.enums import (
+    ORCHESTRATOR_ROLE,
     AccountProvider,
     AccountStatus,
     AgentRole,
@@ -35,7 +36,7 @@ from app.contracts.enums import (
     SectionStatus,
     VerificationStatus,
 )
-from app.contracts.ledger import ChangeEntry, TokenUsage, patch_ref_for
+from app.contracts.ledger import ChangeEntry, EntryRole, TokenUsage, patch_ref_for
 from app.contracts.llm import LLMMessage, LLMRequest, LLMResponse, SystemBlock
 from app.contracts.loop import LoopDecision
 from app.contracts.patch import Patch, PatchOp
@@ -51,6 +52,7 @@ __all__ = [
     "CONTRACTS",
     "CONTRACT_NAMES",
     "GATE_NAMES",
+    "ORCHESTRATOR_ROLE",
     "SCHEMA_VERSION",
     "Account",
     "AccountProvider",
@@ -68,6 +70,7 @@ __all__ = [
     "CitationRef",
     "CitationStyle",
     "Contract",
+    "EntryRole",
     "IssueSeverity",
     "LLMMessage",
     "LLMRequest",

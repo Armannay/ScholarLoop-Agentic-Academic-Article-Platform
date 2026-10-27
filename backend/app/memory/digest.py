@@ -514,7 +514,7 @@ class DigestBuilder:
         targets = ",".join(entry.targets) or "none"
         meta = (
             f"- {entry.id} | i{entry.iter} | task={entry.task_id} | "
-            f"role={entry.role.value} | status={entry.status.value} | "
+            f"role={entry.role_name} | status={entry.status.value} | "
             f"targets={targets} | tokens={entry.tokens.total}"
         )
         if entry.patch_ref:
@@ -705,7 +705,7 @@ class MemoryStore:
         """Ingest one :class:`AgentResult` into ledger, source store, sections and reports."""
         entry = self._ledger.append(result.entry)
         if result.source_cards:
-            self._sources.ingest_many(result.source_cards, role=result.entry.role)
+            self._sources.ingest_many(result.source_cards, role=result.entry.agent_role)
         if result.sections:
             self.update_sections(result.sections)
         if result.report is not None:

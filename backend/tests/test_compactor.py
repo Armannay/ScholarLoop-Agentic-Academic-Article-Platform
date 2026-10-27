@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.contracts.enums import AgentRole, BindingRole, ChangeStatus
+from app.contracts.enums import ORCHESTRATOR_ROLE, AgentRole, BindingRole, ChangeStatus
 from app.memory.compactor import (
     COMPACTOR_JSON_SCHEMA,
     DigestCompactor,
@@ -86,6 +86,27 @@ def test_deterministic_compact_preserves_ids_statuses_and_tokens() -> None:
     rendered = batch.render()
     for entry in entries:
         assert entry.id in rendered
+
+
+def test_deterministic_compact_keeps_orchestrator_entries_addressable() -> None:
+    """Rollback/emergency entries compact like agent entries: ids, roles, no bodies."""
+    entries = [
+        make_entry(1, iteration=1, task_seed=10, role=AgentRole.WRITER),
+        make_entry(
+            2,
+            iteration=2,
+            task_seed=11,
+            role=ORCHESTRATOR_ROLE,
+            summary="Rolled back to the best snapshot after erosion.",
+        ),
+    ]
+
+    batch = deterministic_compact(entries)
+    assert batch.roles == [AgentRole.WRITER, ORCHESTRATOR_ROLE]
+    assert batch.entry_ids == [e.id for e in entries]
+    rendered = batch.render()
+    assert ORCHESTRATOR_ROLE in rendered
+    assert entries[1].id in rendered
 
 
 def test_deterministic_compact_rejects_empty_entries() -> None:

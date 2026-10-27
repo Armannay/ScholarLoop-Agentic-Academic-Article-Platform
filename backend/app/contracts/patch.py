@@ -7,7 +7,7 @@ moved on, which is what keeps three parallel writers from clobbering each other.
 
 from __future__ import annotations
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from app.contracts.common import Contract, NonEmptyStr, SectionId, Ulid, VersionedContract
 from app.contracts.enums import PatchOpType
@@ -30,7 +30,20 @@ FORBIDDEN_FIELDS: dict[PatchOpType, tuple[str, ...]] = {
 
 
 class PatchOp(Contract):
-    """A single edit. ``old`` is matched literally, so no regex escaping is needed."""
+    """A single edit. ``old`` is matched literally, so no regex escaping is needed.
+
+    Whitespace is payload, not formatting: an ``insert_after`` may legitimately splice
+    a leading space into the body (``" for quality."``) and a ``delete_text`` may remove
+    a trailing newline (``"delta [1].\\n"``). So this one model turns off the base
+    class's ``str_strip_whitespace``: stripping here silently moved the edit by one
+    character and forced agents to anchor on the *previous* token to fake the gap.
+
+    Nothing else is relaxed. ``extra="forbid"``, ``str_min_length=1`` and the per-op
+    payload checks in :meth:`_check_payload` still run, so a missing or empty payload
+    stays invalid.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=False)
 
     op: PatchOpType
     anchor: NonEmptyStr | None = Field(

@@ -130,19 +130,60 @@ def test_apply_matrix(text: str, ops: list[PatchOp], expected: str) -> None:
 
 
 def test_insert_after_splices_immediately_after_the_anchor() -> None:
-    """Insertion is a raw splice: no space, no newline the op did not ask for.
-
-    ``PatchOp`` strips surrounding whitespace from its fields (``str_strip_whitespace``
-    in the contract base), so an op cannot express a leading space. Agents anchor on
-    the token *before* the gap instead; see the CONTRACT-CHANGE-REQUEST in HANDOFF.
-    """
+    """Insertion is a raw splice: no space, no newline the op did not ask for."""
     outcome = apply_ops(
         "Alpha beta",
         make_patch(insert_after("Alpha", "gamma"), base_version=0),
         status=SectionStatus.EMPTY,
     )
     assert outcome.text == "Alphagamma beta"
-    assert PatchOp(op=PatchOpType.INSERT_AFTER, anchor="a", text="  b  ").text == "b"
+    # PatchOp keeps whitespace (``str_strip_whitespace=False``), so the op carries
+    # exactly the bytes the agent sent; the splice itself adds nothing.
+    assert PatchOp(op=PatchOpType.INSERT_AFTER, anchor="Alpha", text="  b  ").text == "  b  "
+
+
+def test_insert_after_can_carry_a_leading_space() -> None:
+    """The gap after the anchor is payload, not formatting.
+
+    ``insert_after`` matches literal text, so an agent that wants "for quality. We
+    measure it." has to put the leading space in ``text``. Stripping it used to shift
+    the edit one character left, which is why agents had to anchor on the *previous*
+    token to fake the space.
+    """
+    outcome = apply_ops(
+        BASE_TEXT,
+        make_patch(insert_after("for quality.", " We measure it.")),
+        status=SectionStatus.DRAFT,
+    )
+    assert outcome.text == BASE_TEXT.replace("for quality.", "for quality. We measure it.")
+    assert "quality.  We" not in outcome.text
+    assert outcome.changed is True
+
+
+def test_delete_text_can_carry_a_trailing_newline() -> None:
+    """A needle may end in a newline, so a whole line can be deleted in one op.
+
+    Without the trailing newline in ``old`` the line break survives and leaves an
+    empty paragraph behind - the difference is exactly the whitespace the contract
+    used to strip.
+    """
+    body = "Keep this.\nDelete this line.\nKeep that."
+    outcome = apply_ops(
+        body,
+        make_patch(delete("Delete this line.\n")),
+        status=SectionStatus.DRAFT,
+    )
+    assert outcome.text == "Keep this.\nKeep that."
+    assert PatchOp(op=PatchOpType.DELETE_TEXT, old="Delete this line.\n").old == (
+        "Delete this line.\n"
+    )
+
+    without_newline = apply_ops(
+        body,
+        make_patch(delete("Delete this line.")),
+        status=SectionStatus.DRAFT,
+    )
+    assert without_newline.text == "Keep this.\n\nKeep that."
 
 
 def test_apply_reports_the_numbers_the_ledger_quotes() -> None:
