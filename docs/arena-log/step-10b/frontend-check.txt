@@ -1,0 +1,48 @@
+
+> scholarloop-frontend@0.3.0 lint
+> tsc --noEmit
+
+
+ RUN  v5.0.5 /home/user/ScholarLoop-Agentic-Academic-Article-Platform/frontend
+
+ ✓ src/__tests__/runPage.test.tsx (6 tests) 937ms
+   ✓ RunPage (state badge, plan board, SSE change log, meters, Q chart) (6)
+     ✓ renders the run state, the plan grouped by role, the gates and the budget meters 375ms
+ ✓ src/__tests__/articleViewer.test.tsx (6 tests) 683ms
+   ✓ ArticleViewer (sections, history, diff, restore, RTL, export) (6)
+     ✓ opens a section history and compares two versions 339ms
+ ✓ src/__tests__/appRoutes.test.tsx (3 tests) 544ms
+   ✓ App shell navigation (projects -> run -> article) (3)
+     ✓ walks from the project list to the article viewer without losing the session 472ms
+ ✓ src/__tests__/projectFlow.test.tsx (8 tests) 431ms
+ ✓ src/__tests__/briefWizard.test.tsx (6 tests) 381ms
+ ✓ src/__tests__/useEventSource.test.tsx (1 test) 49ms
+ ✓ src/__tests__/brief.test.ts (10 tests) 29ms
+ ✓ src/__tests__/routing.test.ts (4 tests) 16ms
+ ✓ src/__tests__/exportMarkdown.test.ts (3 tests) 7ms
+
+ Test Files  9 passed (9)
+      Tests  47 passed (47)
+   Start at  19:49:00
+   Duration  11.54s (environment 56%, tests 29%, setup 10%, import 2%, transform 1%, worker 1%)
+
+Environment  jsdom was created 9 times · 5.88s total, 56% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+
+> scholarloop-frontend@0.3.0 build
+> npm run lint && vite build
+
+
+> scholarloop-frontend@0.3.0 lint
+> tsc --noEmit
+
+vite v7.2.2 building client environment for production...
+transforming...
+✓ 62 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  0.58 kB │ gzip:  0.36 kB
+dist/assets/index-DGYvnHNX.js  271.46 kB │ gzip: 82.84 kB │ map: 1,218.97 kB
+✓ built in 1.72s

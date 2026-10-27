@@ -1,12 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// Browser smoke tests for the flows that must never break: create a project from a
-// Brief, watch a run, answer its checkpoint, and read (then export) the article.
+// Browser smoke tests for the flows that must never break: sign in, create a project
+// from a Brief, watch a run, answer its checkpoint, read and export the article.
 //
-// The dev server runs with VITE_API_MOCK=true, so the smoke run needs no backend and no
-// provider keys - the same in-memory mock the unit tests use.
+// The dev server runs with VITE_API_MOCK=true, so the smoke run needs no backend, no
+// database and no provider keys - the same in-memory mock the unit tests use. Point
+// VITE_PROXY_TARGET at a real API and drop the env var to smoke-test against it.
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './playwright',
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
@@ -27,5 +28,10 @@ export default defineConfig({
     timeout: 120_000,
     env: { VITE_API_MOCK: 'true' },
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...(devices['Desktop Chrome'] ?? {}) },
+    },
+  ],
 })

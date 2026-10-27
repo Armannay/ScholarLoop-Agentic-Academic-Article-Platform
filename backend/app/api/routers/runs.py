@@ -15,10 +15,22 @@ Endpoints (all under the house ``/api`` prefix, all authenticated):
 * ``GET /api/runs/{id}`` - run state, plan, decisions, stop report.
 * ``GET /api/runs/{id}/events`` - Server-Sent Events over the persisted
   event log (replay + live tail; ``?once=true`` replays and closes).
+* ``GET /api/runs/{id}/events/history`` - the same log, pageable as JSON.
 * ``GET /api/runs/{id}/digest`` - the bounded ``claude.md`` digest.
 * ``GET /api/runs/{id}/ledger`` - append-only change entries.
+* ``GET /api/runs/{id}/quality`` - latest quality report + Q series.
 * ``GET /api/runs/{id}/article`` - assembled markdown + sections + sources.
+* ``GET /api/runs/{id}/article/sections/{sid}/history`` - version metadata.
+* ``GET /api/runs/{id}/article/sections/{sid}/diff`` - unified diff + stats.
+* ``GET /api/runs/{id}/article/snapshots`` - whole-article snapshots.
+* ``POST /api/runs/{id}/article/restore`` - rollback to a snapshot
+  (``dry_run=true`` previews it; refuses while a wave is executing).
 * ``GET /api/runs/{id}/usage`` - token usage by role/iteration + planner.
+
+While a run of the same (owner, project) is live - executing or paused at a
+checkpoint - a second ``POST`` is refused with ``409 run_conflict`` and
+``context.reason=active_run`` (the frozen OpenAPI design: one project, one
+live run).
 
 There is no Project *contract* in CONTRACTS v1 (see the Step 9 handoff): a
 ``project_id`` is an opaque owner-scoped label stored on the run record. Since
@@ -38,11 +50,11 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Path, Query, Request, status
 from fastapi.responses import StreamingResponse
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from app.accounts.service import SqlAccountResolver
 from app.agents.binding import UserBindingResolver
@@ -52,10 +64,14 @@ from app.agents.registry import AgentRegistry
 from app.agents.roles.factory import register_role_agents
 from app.api.deps import CurrentUserDep, get_policies_dep, get_pool, get_rubric_dep
 from app.contracts.brief import Brief
-from app.contracts.common import Contract, Ulid
+from app.contracts.common import Contract, SectionId, Ulid
+from app.contracts.enums import SectionStatus
 from app.contracts.ledger import ChangeEntry
 from app.contracts.loop import LoopDecision
 from app.contracts.plan import Plan
+from app.contracts.quality import QualityReport
+from app.contracts.section import SectionState
+from app.contracts.source import SourceCard
 from app.contracts.verdict import Verdict
 from app.orchestrator.intake import QuickEditRequest
 from app.orchestrator.persistence import FileRunStore, RunRecord
@@ -174,6 +190,204 @@ class DigestView(Contract):
     open_issues: list[str] = Field(default_factory=list)
 
 
+class RunEventList(Contract):
+    """GET /runs/{id}/events/history - the SSE log, pageable as JSON."""
+
+    run_id: Ulid
+    events: list[RunEvent] = Field(default_factory=list)
+    next_after: int | None = Field(
+        default=None, description="Cursor for the next page; null = log exhausted."
+    )
+
+
+class QualityPoint(Contract):
+    """One entry of the Q series (the erosion detectors read the same series)."""
+
+    iter: int = Field(ge=0)
+    q: int = Field(ge=0, le=100)
+    gates_passed: bool
+    verified_citation_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+class QualityView(Contract):
+    """GET /runs/{id}/quality - latest report plus the Q history."""
+
+    run_id: Ulid
+    latest: QualityReport | None = None
+    series: list[QualityPoint] = Field(default_factory=list)
+    best_q: float | None = None
+
+
+_HASH_PATTERN = "^sha256:[0-9a-f]{64}$"
+
+
+class VersionInfo(Contract):
+    """Text-free metadata about one immutable section version."""
+
+    section_id: SectionId
+    version: int = Field(ge=0)
+    hash: str = Field(pattern=_HASH_PATTERN)
+    words: int = Field(ge=0)
+    status: SectionStatus
+    chars_added: int = Field(ge=0)
+    chars_removed: int = Field(ge=0)
+    patch_id: str | None = None
+    entry_id: str | None = None
+    created_at: datetime
+    q_after: float | None = None
+
+
+class SectionHistoryView(Contract):
+    """GET /runs/{id}/article/sections/{sid}/history."""
+
+    run_id: Ulid
+    section_id: SectionId
+    versions: list[VersionInfo] = Field(default_factory=list)
+
+
+class DiffStats(Contract):
+    """Character-level change size - the numbers the erosion detectors use."""
+
+    chars_added: int = Field(ge=0)
+    chars_removed: int = Field(ge=0)
+    net_chars: int
+    touched_chars: int = Field(ge=0)
+
+
+class TextDiff(Contract):
+    """A rendered diff between two section bodies (empty ``unified`` = no change)."""
+
+    model_config = ConfigDict(
+        extra="forbid", validate_assignment=True, str_strip_whitespace=False, str_min_length=0
+    )
+
+    stats: DiffStats
+    lines_added: int = Field(ge=0)
+    lines_removed: int = Field(ge=0)
+    unified: str = ""
+
+
+class SectionVersionRef(Contract):
+    """The ``from``/``to`` side of a section diff: a version by reference."""
+
+    version: int = Field(ge=0)
+    hash: str = Field(pattern=_HASH_PATTERN)
+    words: int | None = Field(default=None, ge=0)
+
+
+class SectionDiffView(Contract):
+    """GET /runs/{id}/article/sections/{sid}/diff. ``from`` is a JSON key."""
+
+    model_config = ConfigDict(
+        extra="forbid", populate_by_name=True, serialize_by_alias=True, validate_assignment=True
+    )
+
+    run_id: Ulid
+    section_id: SectionId
+    from_: SectionVersionRef = Field(alias="from")
+    to: SectionVersionRef
+    diff: TextDiff
+
+
+class SnapshotSummary(Contract):
+    """Metadata of one whole-article snapshot - no bodies."""
+
+    id: str
+    label: str
+    q: float | None = None
+    iter: int | None = None
+    created_at: datetime
+    section_ids: list[SectionId] = Field(default_factory=list)
+    total_words: int = Field(ge=0)
+
+
+class SnapshotList(Contract):
+    """GET /runs/{id}/article/snapshots - newest first."""
+
+    run_id: Ulid
+    best_snapshot_id: str | None = None
+    snapshots: list[SnapshotSummary] = Field(default_factory=list)
+
+
+class RestoreRequest(Contract):
+    """POST /runs/{id}/article/restore body."""
+
+    snapshot_id: str = Field(min_length=1)
+    dry_run: bool = Field(
+        default=False, description="Report what would change without writing a new version."
+    )
+
+
+class RestoreView(Contract):
+    """POST /runs/{id}/article/restore - what the restore changed."""
+
+    run_id: Ulid
+    snapshot_id: str
+    label: str
+    q: float | None = None
+    restored: list[SectionId] = Field(default_factory=list)
+    unchanged: list[SectionId] = Field(default_factory=list)
+    versions: dict[str, int] = Field(default_factory=dict)
+    state: RunStateName
+    updated_at: datetime
+    dry_run: bool = False
+
+
+class ArticleSection(SectionState):
+    """A SectionState plus its exact body (spec: SectionState + ``text``).
+
+    Section bodies are payload, not metadata: no whitespace stripping, and the
+    empty string is the legal body of an ``EMPTY`` section.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
+        str_strip_whitespace=False,
+        str_min_length=0,
+    )
+
+    text: str = Field(default="")
+
+
+class ArticleView(Contract):
+    """GET /runs/{id}/article - assembled markdown, sections, sources."""
+
+    run_id: Ulid
+    markdown: str
+    body_words: int = Field(ge=0)
+    words_by_section: dict[str, int] = Field(default_factory=dict)
+    sections: list[ArticleSection] = Field(default_factory=list)
+    sources: list[SourceCard] = Field(default_factory=list)
+
+
+class UsageBreakdown(Contract):
+    """Tokens in one bucket. Wire shape: ``{"in", "out", "cached", "total"}``."""
+
+    model_config = ConfigDict(
+        extra="forbid", populate_by_name=True, serialize_by_alias=True, validate_assignment=True
+    )
+
+    in_: int = Field(alias="in", ge=0)
+    out: int = Field(ge=0)
+    cached: int = Field(default=0, ge=0)
+    total: int = Field(default=0, ge=0)
+
+
+class RunUsageView(Contract):
+    """GET /runs/{id}/usage - spend by role/iteration against the caps."""
+
+    run_id: Ulid
+    total: int = Field(ge=0)
+    agents_total: UsageBreakdown
+    planner: UsageBreakdown
+    by_role: dict[str, UsageBreakdown] = Field(default_factory=dict)
+    by_iter: dict[str, UsageBreakdown] = Field(default_factory=dict)
+    token_cap: int = Field(ge=0)
+    iterations: int = Field(ge=0)
+    max_iterations: int = Field(ge=0)
+
+
 # --------------------------------------------------------------------------- wiring
 def _run_store(request: Request) -> FileRunStore:
     store: FileRunStore | None = getattr(request.app.state, "run_store", None)
@@ -265,6 +479,11 @@ def _view(manager: RunManager, record: RunRecord) -> RunView:
 
 
 # --------------------------------------------------------------------------- endpoints
+#: The OpenAPI ``ProjectId`` path parameter: opaque owner-scoped slug.
+PROJECT_ID_PATTERN = "^[a-z0-9][a-z0-9-]{2,63}$"
+ProjectIdPath = Annotated[str, Path(pattern=PROJECT_ID_PATTERN)]
+
+
 @router.post(
     "/projects/{project_id}/runs",
     response_model=RunView,
@@ -272,7 +491,7 @@ def _view(manager: RunManager, record: RunRecord) -> RunView:
     summary="Create and start a run",
 )
 async def create_run(
-    project_id: str, payload: RunCreate, request: Request, user: CurrentUserDep
+    project_id: ProjectIdPath, payload: RunCreate, request: Request, user: CurrentUserDep
 ) -> RunView:
     manager = _manager_for(request, user.id)
     orchestrator = manager.orchestrator
@@ -362,6 +581,22 @@ async def run_events(
     )
 
 
+@router.get(
+    "/runs/{run_id}/events/history",
+    response_model=RunEventList,
+    summary="Run events as JSON (the SSE log, without the stream)",
+)
+async def run_event_history(
+    run_id: str,
+    request: Request,
+    user: CurrentUserDep,
+    after: int = Query(default=-1, ge=-1),
+    limit: int = Query(default=200, ge=1, le=1000),
+) -> dict[str, Any]:
+    manager = _manager_for(request, user.id)
+    return manager.orchestrator.events_page(run_id, after=after, limit=limit, owner_id=user.id)
+
+
 @router.get("/runs/{run_id}/digest", response_model=DigestView, summary="Bounded digest")
 async def get_digest(run_id: str, request: Request, user: CurrentUserDep) -> DigestView:
     manager = _manager_for(request, user.id)
@@ -384,14 +619,79 @@ async def get_ledger(run_id: str, request: Request, user: CurrentUserDep) -> Led
     return LedgerView(run_id=run_id, entries=list(record.entries))
 
 
-@router.get("/runs/{run_id}/article", summary="Assembled article")
+@router.get(
+    "/runs/{run_id}/quality",
+    response_model=QualityView,
+    summary="Quality reports (gates, criteria scores, Q)",
+)
+async def get_quality(run_id: str, request: Request, user: CurrentUserDep) -> dict[str, Any]:
+    manager = _manager_for(request, user.id)
+    return manager.orchestrator.quality_view(run_id, owner_id=user.id)
+
+
+@router.get("/runs/{run_id}/article", response_model=ArticleView, summary="Assembled article")
 async def get_article(run_id: str, request: Request, user: CurrentUserDep) -> dict[str, Any]:
     manager = _manager_for(request, user.id)
     data = await manager.orchestrator.article_data(run_id, owner_id=user.id)
     return {"run_id": run_id, **data}
 
 
-@router.get("/runs/{run_id}/usage", summary="Token usage")
+@router.get(
+    "/runs/{run_id}/article/sections/{section_id}/history",
+    response_model=SectionHistoryView,
+    summary="Version history of one section",
+)
+async def get_section_history(
+    run_id: str, section_id: str, request: Request, user: CurrentUserDep
+) -> dict[str, Any]:
+    manager = _manager_for(request, user.id)
+    return await manager.orchestrator.section_history(run_id, section_id, owner_id=user.id)
+
+
+@router.get(
+    "/runs/{run_id}/article/sections/{section_id}/diff",
+    response_model=SectionDiffView,
+    summary="Diff between two versions of one section",
+)
+async def get_section_diff(
+    run_id: str,
+    section_id: str,
+    request: Request,
+    user: CurrentUserDep,
+    from_version: Annotated[int | None, Query(alias="from", ge=0)] = None,
+    to_version: Annotated[int | None, Query(alias="to", ge=0)] = None,
+) -> dict[str, Any]:
+    manager = _manager_for(request, user.id)
+    return await manager.orchestrator.section_diff(
+        run_id, section_id, from_version=from_version, to_version=to_version, owner_id=user.id
+    )
+
+
+@router.get(
+    "/runs/{run_id}/article/snapshots",
+    response_model=SnapshotList,
+    summary="Whole-article snapshots",
+)
+async def list_snapshots(run_id: str, request: Request, user: CurrentUserDep) -> dict[str, Any]:
+    manager = _manager_for(request, user.id)
+    return await manager.orchestrator.snapshots_list(run_id, owner_id=user.id)
+
+
+@router.post(
+    "/runs/{run_id}/article/restore",
+    response_model=RestoreView,
+    summary="Roll the article back to a snapshot",
+)
+async def restore_article(
+    run_id: str, payload: RestoreRequest, request: Request, user: CurrentUserDep
+) -> dict[str, Any]:
+    manager = _manager_for(request, user.id)
+    return await manager.orchestrator.restore_snapshot(
+        run_id, payload.snapshot_id, dry_run=payload.dry_run, owner_id=user.id
+    )
+
+
+@router.get("/runs/{run_id}/usage", response_model=RunUsageView, summary="Token usage")
 async def get_usage(run_id: str, request: Request, user: CurrentUserDep) -> dict[str, Any]:
     manager = _manager_for(request, user.id)
     return manager.orchestrator.usage_summary(run_id, owner_id=user.id)

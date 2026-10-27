@@ -1,10 +1,9 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
-// Unit tests run in jsdom so the same components the browser gets are the ones under
-// test: real DOM, real events, real focus. The mock API (`src/mockServer.ts`) is the
-// only transport, so no test ever reaches the network (HARD RULE 5 in the backend, and
-// the same discipline here).
+// Unit and component tests run in jsdom, so the components under test are the ones the
+// browser gets: real DOM, real events, real focus. The only transport is the in-memory
+// mock (`src/api/mockServer.ts`), so no test reaches the network.
 export default defineConfig({
   plugins: [react()],
   test: {

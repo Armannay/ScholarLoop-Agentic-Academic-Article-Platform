@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ArticleViewer } from '../ArticleViewer'
-import { MockApiServer } from '../mockServer'
+import { Article } from '../pages/article'
+import { MockApiServer } from '../api/mockServer'
 import { seededProjectByName, runsOf, signIn } from '../test/helpers'
-import type { ProjectView } from '../types'
+import type { Project } from '../lib/api'
 
 let server: MockApiServer
 
@@ -11,7 +11,7 @@ beforeEach(() => {
   server = new MockApiServer()
 })
 
-async function englishProject(): Promise<{ project: ProjectView; runId: string }> {
+async function englishProject(): Promise<{ project: Project; runId: string }> {
   await signIn(server, 'article@example.org')
   const project = await seededProjectByName('Peer review checklists')
   const runs = await runsOf(project.id)
@@ -24,7 +24,7 @@ describe('ArticleViewer (sections, history, diff, restore, RTL, export)', () => 
   it('renders every section with its status, word count and citations', async () => {
     const { project, runId } = await englishProject()
     const { container } = render(
-      <ArticleViewer runId={runId} brief={project.brief ?? null} onBack={vi.fn()} />,
+      <Article runId={runId} brief={project.brief ?? null} onBack={vi.fn()} />,
     )
 
     expect(await screen.findByText('Methodology')).toBeTruthy()
@@ -41,7 +41,7 @@ describe('ArticleViewer (sections, history, diff, restore, RTL, export)', () => 
   it('opens a section history and compares two versions', async () => {
     const { project, runId } = await englishProject()
     const { container } = render(
-      <ArticleViewer runId={runId} brief={project.brief ?? null} onBack={vi.fn()} />,
+      <Article runId={runId} brief={project.brief ?? null} onBack={vi.fn()} />,
     )
     await screen.findByText('Methodology')
 
@@ -63,7 +63,7 @@ describe('ArticleViewer (sections, history, diff, restore, RTL, export)', () => 
 
   it('restores a snapshot and reports it as new versions, not a rewrite', async () => {
     const { project, runId } = await englishProject()
-    render(<ArticleViewer runId={runId} brief={project.brief ?? null} onBack={vi.fn()} />)
+    render(<Article runId={runId} brief={project.brief ?? null} onBack={vi.fn()} />)
     await screen.findByText('Methodology')
 
     const snapshotPanel = screen.getByLabelText('Snapshots')
@@ -88,7 +88,7 @@ describe('ArticleViewer (sections, history, diff, restore, RTL, export)', () => 
     Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true })
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
 
-    render(<ArticleViewer runId={runId} brief={project.brief ?? null} onBack={vi.fn()} />)
+    render(<Article runId={runId} brief={project.brief ?? null} onBack={vi.fn()} />)
     await screen.findByText('Methodology')
     fireEvent.click(screen.getByRole('button', { name: /export \.md/i }))
 
@@ -109,7 +109,7 @@ describe('ArticleViewer (sections, history, diff, restore, RTL, export)', () => 
     if (!run) throw new Error('no fa run seeded')
 
     const { container } = render(
-      <ArticleViewer runId={run.id} brief={project.brief ?? null} onBack={vi.fn()} />,
+      <Article runId={run.id} brief={project.brief ?? null} onBack={vi.fn()} />,
     )
     expect(await screen.findByText('مقدمه')).toBeTruthy()
     const body = container.querySelector('.article-body')
@@ -120,7 +120,7 @@ describe('ArticleViewer (sections, history, diff, restore, RTL, export)', () => 
 
   it('shows an error state when the article cannot be loaded', async () => {
     await signIn(server, 'missing-article@example.org')
-    render(<ArticleViewer runId="01ZZZZZZZZZZZZZZZZZZZZZZZZ" brief={null} onBack={vi.fn()} />)
+    render(<Article runId="01ZZZZZZZZZZZZZZZZZZZZZZZZ" brief={null} onBack={vi.fn()} />)
     expect(await screen.findByText(/article unavailable/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
   })

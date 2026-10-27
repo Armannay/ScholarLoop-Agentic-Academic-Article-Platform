@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { BriefWizard } from '../BriefWizard'
+import { BriefForm } from '../components'
 
 function fill(label: RegExp | string, value: string): void {
   const field = screen.getByLabelText(label) as HTMLInputElement | HTMLTextAreaElement
@@ -10,7 +10,7 @@ function fill(label: RegExp | string, value: string): void {
 describe('BriefWizard (Brief form with inline validation)', () => {
   it('shows inline errors on submit, focuses the first invalid field and does not submit', () => {
     const onSubmit = vi.fn()
-    render(<BriefWizard submitting={false} highlightFields={[]} onSubmit={onSubmit} />)
+    render(<BriefForm submitting={false} highlightFields={[]} onSubmit={onSubmit} />)
 
     fireEvent.click(screen.getByRole('button', { name: /create project & run/i }))
 
@@ -25,14 +25,14 @@ describe('BriefWizard (Brief form with inline validation)', () => {
   })
 
   it('does not shout before a field is touched', () => {
-    render(<BriefWizard submitting={false} highlightFields={[]} onSubmit={vi.fn()} />)
+    render(<BriefForm submitting={false} highlightFields={[]} onSubmit={vi.fn()} />)
     expect(screen.queryByText(/topic is required/i)).toBeNull()
     fireEvent.blur(screen.getByLabelText(/topic/i))
     expect(screen.getByText(/topic is required/i)).toBeTruthy()
   })
 
   it('turns a NEEDS_INPUT answer from the server into inline questions', () => {
-    render(<BriefWizard submitting={false} highlightFields={['audience', 'topic']} onSubmit={vi.fn()} />)
+    render(<BriefForm submitting={false} highlightFields={['audience', 'topic']} onSubmit={vi.fn()} />)
     expect(screen.getByLabelText(/audience/i).getAttribute('aria-invalid')).toBe('true')
     expect(screen.getByLabelText(/^topic/i).getAttribute('aria-invalid')).toBe('true')
     expect(screen.getByText(/target audience is required/i)).toBeTruthy()
@@ -42,7 +42,7 @@ describe('BriefWizard (Brief form with inline validation)', () => {
 
   it('submits the exact Brief contract shape once everything is valid', () => {
     const onSubmit = vi.fn()
-    render(<BriefWizard submitting={false} highlightFields={[]} onSubmit={onSubmit} />)
+    render(<BriefForm submitting={false} highlightFields={[]} onSubmit={onSubmit} />)
 
     fill(/project name/i, 'peer-review-2026')
     fill(/^topic/i, 'Tightening peer review with structured checklists')
@@ -74,7 +74,7 @@ describe('BriefWizard (Brief form with inline validation)', () => {
 
   it('reflects the ±15% word tolerance live and blocks a contradictory brief', () => {
     const onSubmit = vi.fn()
-    render(<BriefWizard submitting={false} highlightFields={[]} onSubmit={onSubmit} />)
+    render(<BriefForm submitting={false} highlightFields={[]} onSubmit={onSubmit} />)
     expect(screen.getByText(/722–977 words/)).toBeTruthy()
 
     fill(/project name/i, 'contradiction-demo')
@@ -89,7 +89,7 @@ describe('BriefWizard (Brief form with inline validation)', () => {
   })
 
   it('disables the submit button while a submit is in flight', () => {
-    render(<BriefWizard submitting highlightFields={[]} onSubmit={vi.fn()} />)
+    render(<BriefForm submitting highlightFields={[]} onSubmit={vi.fn()} />)
     const button = screen.getByRole('button', { name: /validating/i }) as HTMLButtonElement
     expect(button.disabled).toBe(true)
   })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { renderArticleMarkdown } from '../exportMarkdown'
-import { ENGLISH_BRIEF, PERSIAN_BRIEF, buildEnglishArticle, buildPersianArticle } from '../fixtures'
+import { renderArticleMarkdown } from '../lib/exportMarkdown'
+import { ENGLISH_BRIEF, PERSIAN_BRIEF, buildEnglishArticle, buildPersianArticle } from '../api/fixtures'
 
 const RUN_ID = '01M5Z0X96Y000000000000005H'
 

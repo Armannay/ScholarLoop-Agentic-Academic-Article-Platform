@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, createProject, createRun, listProjectRuns } from '../api'
-import { NewProjectPage } from '../NewProjectPage'
-import { ProjectPage } from '../ProjectPage'
-import { MockApiServer } from '../mockServer'
+import { ApiError, createProject, createRun, listProjectRuns } from '../lib/api'
+import { NewProject } from '../pages/new-project'
+import { Project } from '../pages/project'
+import { MockApiServer } from '../api/mockServer'
 import { seededProjectByName, signIn } from '../test/helpers'
-import { ENGLISH_BRIEF } from '../fixtures'
+import { ENGLISH_BRIEF } from '../api/fixtures'
 
 let server: MockApiServer
 
@@ -23,7 +23,7 @@ describe('New project (Brief form -> project -> run)', () => {
     const onCreated = vi.fn()
     const onRunStarted = vi.fn()
 
-    render(<NewProjectPage onCreated={onCreated} onCancel={vi.fn()} onRunStarted={onRunStarted} />)
+    render(<NewProject onCreated={onCreated} onCancel={vi.fn()} onRunStarted={onRunStarted} />)
 
     fill(/project name/i, 'peer-review-copy')
     fill(/^topic/i, 'Tightening peer review with structured checklists')
@@ -54,7 +54,7 @@ describe('New project (Brief form -> project -> run)', () => {
     await signIn(server, 'no-run@example.org')
     const onRunStarted = vi.fn()
     const onCreated = vi.fn()
-    render(<NewProjectPage onCreated={onCreated} onCancel={vi.fn()} onRunStarted={onRunStarted} />)
+    render(<NewProject onCreated={onCreated} onCancel={vi.fn()} onRunStarted={onRunStarted} />)
 
     fireEvent.click(screen.getByLabelText(/start a run as soon as/i))
     fill(/project name/i, 'quiet-project')
@@ -73,15 +73,17 @@ describe('deterministic intake over the API (NEEDS_INPUT)', () => {
     await expect(
       createProject({
         name: 'incomplete',
-        brief: { topic: 'Tightening peer review with structured checklists' },
+        brief: { topic: 'Tightening peer review with structured checklists' } as never,
       }),
     ).rejects.toMatchObject({ status: 409, code: 'needs_user_input' })
 
     try {
-      await createProject({ name: 'incomplete-2', brief: { topic: 'only a topic here' } })
+      await createProject({ name: 'incomplete-2', brief: { topic: 'only a topic here' } as never })
     } catch (cause) {
       const error = cause as ApiError
-      expect(error.missingFields).toEqual(
+      expect(error.status).toBe(409)
+      expect(error.code).toBe('needs_user_input')
+      expect(error.context?.missing_fields).toEqual(
         expect.arrayContaining(['audience', 'language', 'target_words', 'citation_style']),
       )
     }
@@ -114,7 +116,7 @@ describe('deterministic intake over the API (NEEDS_INPUT)', () => {
     await signIn(server, 'runs-api@example.org')
     const project = await createProject({ name: 'two-runs', brief: ENGLISH_BRIEF })
     await createRun(project.id, { brief: ENGLISH_BRIEF })
-    await createRun(project.id, { brief: ENGLISH_BRIEF }, { scenario: 'needs-input' })
+    await createRun(project.id, { brief: ENGLISH_BRIEF }, 'needs-input')
     const runs = await listProjectRuns(project.id)
     expect(runs.runs).toHaveLength(2)
     expect(runs.runs[0]?.checkpoint_kind).toBe('needs_input')
@@ -127,7 +129,7 @@ describe('ProjectPage', () => {
     const seeded = await seededProjectByName('Peer review checklists')
     const onOpenRun = vi.fn()
     render(
-      <ProjectPage
+      <Project
         projectId={seeded.id}
         onOpenRun={onOpenRun}
         onBack={vi.fn()}
@@ -151,7 +153,7 @@ describe('ProjectPage', () => {
     const seeded = await seededProjectByName('Peer review checklists')
     const onOpenRun = vi.fn()
     render(
-      <ProjectPage
+      <Project
         projectId={seeded.id}
         onOpenRun={onOpenRun}
         onBack={vi.fn()}

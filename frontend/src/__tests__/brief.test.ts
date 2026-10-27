@@ -5,7 +5,7 @@ import {
   validateBriefDraft,
   wordToleranceRange,
   type BriefDraftInput,
-} from '../types'
+} from '../lib/domain'
 
 function draft(overrides: Partial<BriefDraftInput> = {}): BriefDraftInput {
   return {

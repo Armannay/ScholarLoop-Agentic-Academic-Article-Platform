@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { RunPage } from '../RunPage'
-import { MockApiServer } from '../mockServer'
+import { Run } from '../pages/run'
+import { MockApiServer } from '../api/mockServer'
 import { seededProjectByName, runsOf, signIn } from '../test/helpers'
 
 let server: MockApiServer
@@ -23,7 +23,7 @@ describe('RunPage (state badge, plan board, SSE change log, meters, Q chart)', (
   it('renders the run state, the plan grouped by role, the gates and the budget meters', async () => {
     const runId = await checkpointRunId()
     const { container } = render(
-      <RunPage runId={runId} onOpenArticle={vi.fn()} onBack={vi.fn()} />,
+      <Run runId={runId} onOpenArticle={vi.fn()} onBack={vi.fn()} />,
     )
 
     // State badge (the report repeats the label, so both are fine).
@@ -60,7 +60,7 @@ describe('RunPage (state badge, plan board, SSE change log, meters, Q chart)', (
   it('streams the change log over SSE and shows the ledger audit trail', async () => {
     const runId = await checkpointRunId()
     const { container } = render(
-      <RunPage runId={runId} onOpenArticle={vi.fn()} onBack={vi.fn()} />,
+      <Run runId={runId} onOpenArticle={vi.fn()} onBack={vi.fn()} />,
     )
 
     await waitFor(() => {
@@ -82,7 +82,7 @@ describe('RunPage (state badge, plan board, SSE change log, meters, Q chart)', (
   it('opens the checkpoint dialog with exactly the legal options and finishes the run', async () => {
     const runId = await checkpointRunId()
     const onOpenArticle = vi.fn()
-    render(<RunPage runId={runId} onOpenArticle={onOpenArticle} onBack={vi.fn()} />)
+    render(<Run runId={runId} onOpenArticle={onOpenArticle} onBack={vi.fn()} />)
 
     await screen.findAllByText('Waiting for you')
     fireEvent.click(screen.getByRole('button', { name: /review checkpoint/i }))
@@ -109,7 +109,7 @@ describe('RunPage (state badge, plan board, SSE change log, meters, Q chart)', (
   it('opens the article viewer through the header action', async () => {
     const runId = await checkpointRunId()
     const onOpenArticle = vi.fn()
-    render(<RunPage runId={runId} onOpenArticle={onOpenArticle} onBack={vi.fn()} />)
+    render(<Run runId={runId} onOpenArticle={onOpenArticle} onBack={vi.fn()} />)
     await screen.findAllByText('Waiting for you')
     fireEvent.click(screen.getByRole('button', { name: /open article/i }))
     expect(onOpenArticle).toHaveBeenCalledWith(runId)
@@ -117,7 +117,7 @@ describe('RunPage (state badge, plan board, SSE change log, meters, Q chart)', (
 
   it('shows a load error state with a retry when the run does not exist', async () => {
     await signIn(server, 'missing@example.org')
-    render(<RunPage runId="01ZZZZZZZZZZZZZZZZZZZZZZZZ" onOpenArticle={vi.fn()} onBack={vi.fn()} />)
+    render(<Run runId="01ZZZZZZZZZZZZZZZZZZZZZZZZ" onOpenArticle={vi.fn()} onBack={vi.fn()} />)
     expect(await screen.findByText(/run unavailable/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
   })
@@ -130,7 +130,7 @@ describe('RunPage (state badge, plan board, SSE change log, meters, Q chart)', (
     if (!stopped) throw new Error('no stopped run seeded')
 
     const { container } = render(
-      <RunPage runId={stopped.id} onOpenArticle={vi.fn()} onBack={vi.fn()} />,
+      <Run runId={stopped.id} onOpenArticle={vi.fn()} onBack={vi.fn()} />,
     )
     expect((await screen.findAllByText(/Stopped · erosion/i)).length).toBeGreaterThan(0)
     expect(await screen.findByText('Evidence (4 keys)')).toBeTruthy()
