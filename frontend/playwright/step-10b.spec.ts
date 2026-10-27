@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type TestInfo } from '@playwright/test'
 
 /**
  * Playwright smoke test for the Step 10b flows.
@@ -10,22 +10,27 @@ import { expect, test, type Page } from '@playwright/test'
  * screen reader.
  */
 
-const EMAIL = 'smoke-operator@example.org'
 const PASSWORD = 'placeholder-pass'
 
-async function register(page: Page): Promise<void> {
+/**
+ * Register a fresh operator. The email is unique per test (and per retry) so a retried
+ * test never trips the mock's duplicate-email 409.
+ */
+async function register(page: Page, testInfo: TestInfo): Promise<void> {
+  const email = `smoke-${testInfo.workerIndex}-${testInfo.retry}-${testInfo.title.length}@example.org`
   await page.goto('/#/login')
   await expect(page.getByRole('heading', { name: /sign in to scholarloop/i })).toBeVisible()
   await page.getByRole('button', { name: /need an account\? register/i }).click()
-  await page.getByLabel('Email').fill(EMAIL)
+  await expect(page.getByRole('heading', { name: /create an account/i })).toBeVisible()
+  await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Create account' }).click()
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible({ timeout: 15_000 })
 }
 
 test.describe('ScholarLoop Step 10b smoke', () => {
-  test('project -> brief -> run -> checkpoint -> article -> export', async ({ page }) => {
-    await register(page)
+  test('project -> brief -> run -> checkpoint -> article -> export', async ({ page }, testInfo) => {
+    await register(page, testInfo)
 
     // Project list (seeded fixtures live in the mock).
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Projects' }).click()
@@ -84,8 +89,8 @@ test.describe('ScholarLoop Step 10b smoke', () => {
     await expect(page.getByText(/exported scholarloop-/i)).toBeVisible()
   })
 
-  test('a needs_input checkpoint offers only legal options', async ({ page }) => {
-    await register(page)
+  test('a needs_input checkpoint offers only legal options', async ({ page }, testInfo) => {
+    await register(page, testInfo)
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Projects' }).click()
     await page.getByRole('button', { name: 'Peer review checklists 2026' }).click()
 
@@ -102,8 +107,8 @@ test.describe('ScholarLoop Step 10b smoke', () => {
     await expect(dialog).toBeHidden()
   })
 
-  test('a Persian project renders the article right-to-left', async ({ page }) => {
-    await register(page)
+  test('a Persian project renders the article right-to-left', async ({ page }, testInfo) => {
+    await register(page, testInfo)
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Projects' }).click()
     await page.getByRole('button', { name: /اخلاق/ }).click()
     await page.getByRole('button', { name: 'Open' }).first().click()
