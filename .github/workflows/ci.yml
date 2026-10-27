@@ -105,6 +105,14 @@ jobs:
   e2e:
     name: frontend (Playwright smoke test)
     runs-on: ubuntu-latest
+    # ADVISORY until somebody with log access has seen it pass. The spec typechecks and
+    # the same flows are green under jsdom (appRoutes/runPage/articleViewer/
+    # useEventSource), but the agent sandbox that wrote it cannot download a browser
+    # (cdn.playwright.dev is blocked) *and* cannot read this job's logs (they live on
+    # blob storage outside its egress allowlist), so the run has never been observed
+    # end-to-end. The report + traces are uploaded on failure. Flip this to false once a
+    # local `npm run e2e` is green.
+    continue-on-error: true
     defaults:
       run:
         working-directory: frontend
