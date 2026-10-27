@@ -100,9 +100,9 @@ agent sandbox (`ECONNRESET` to `cdn.playwright.dev`) and the job's logs and arti
 on blob storage outside its egress allowlist, so the smoke test has never been observed
 end-to-end here. Its first CI run did find a real bug — the shell's login labels were not
 associated with their inputs, so the fields had no accessible name — which is fixed and
-pinned by a jsdom test. The job now carries `continue-on-error: true` with a comment
-explaining the state, uploads its report on failure, and should be flipped to blocking
-after one local `npm run e2e`. The same walk is already green browser-lessly in
+pinned by a jsdom test. The job is therefore **gated behind the repository variable `RUN_E2E`** (set it to
+`true` after one local `npm run e2e`), with the reason in the workflow, and it uploads
+its report and traces on failure. The same walk is already green browser-lessly in
 `appRoutes.test.tsx`, `runPage.test.tsx`, `articleViewer.test.tsx` and
 `useEventSource.test.tsx`.
 
