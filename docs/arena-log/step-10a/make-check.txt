@@ -1,0 +1,34 @@
+# make check - Step 10a (Login/register + Accounts + Agents UI) - captured 2026-10-27
+
+$ make check
+.venv/bin/ruff check backend
+All checks passed!
+.venv/bin/ruff format --check backend
+204 files already formatted
+.venv/bin/mypy
+Success: no issues found in 138 source files
+.venv/bin/python -m app.skills.lint --skills-dir skills
+ok   abstract-writing          283/400 tokens (ceiling 400)
+ok   citation-apa7             287/400 tokens (ceiling 400)
+ok   citation-ieee             265/400 tokens (ceiling 400)
+ok   imrad-structure           358/400 tokens (ceiling 400)
+ok   literature-matrix         261/400 tokens (ceiling 400)
+ok   patch-format              308/400 tokens (ceiling 400)
+ok   peer-review-checklist     285/400 tokens (ceiling 400)
+7 skill(s) OK in skills
+.venv/bin/python -m pytest
+1145 passed, 8 skipped, 1 warning in ~25s
+
+Frontend (separate gate, run from frontend/):
+$ npm run lint   -> tsc --noEmit clean
+$ npm test       -> 6 tests, 1 suite, 6 pass, 0 fail
+
+End-to-end smoke test (real backend :8000, frontend :5173 proxying /api):
+- register (email canonicalized to lowercase) -> login -> /me all return 200
+- create Anthropic account with monthly budget (tokens 500,000 / USD 25.00): key_mask `****1234`, 12-char fingerprint, key never echoed
+- rotate key on PATCH: fingerprint changes, old key gone
+- Test connection probe: ok for active, 409 `no_account_available` for disabled
+- bind planner + writer to the account (dedicated, claude-sonnet-4)
+- DELETE account -> 409 `conflict` with `context.roles = ["planner","writer"]`
+- DELETE with `?replacement_account_id=` -> swaps roles to replacement account
+- DELETE with `?disable_roles=true` -> disables roles, deletes account
