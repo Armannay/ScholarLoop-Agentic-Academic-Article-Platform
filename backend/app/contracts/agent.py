@@ -35,9 +35,19 @@ class AgentResult(VersionedContract):
 
     @model_validator(mode="after")
     def _internally_consistent(self) -> AgentResult:
-        if self.report is not None and self.entry.role not in REPORT_ONLY_ROLES:
+        # The ledger also carries the orchestrator's own entries (rollbacks, emergency
+        # actions), but an *agent result* is by definition authored by an agent: only
+        # the orchestrator may write `role='orchestrator'`, and only for its own work.
+        role = self.entry.role
+        if not isinstance(role, AgentRole):
             raise ValueError(
-                f"role '{self.entry.role.value}' may not return a QualityReport; "
+                "agents cannot emit orchestrator entries: role 'orchestrator' is "
+                "reserved for the orchestrator's own rollback/emergency entries"
+            )
+
+        if self.report is not None and role not in REPORT_ONLY_ROLES:
+            raise ValueError(
+                f"role '{role.value}' may not return a QualityReport; "
                 "only the validator scores the article"
             )
 
@@ -61,7 +71,6 @@ class AgentResult(VersionedContract):
         if len(source_ids) != len(self.source_cards):
             raise ValueError("duplicate source card ids in one result")
 
-        _ = AgentRole  # re-exported type guard: entry.role is always one of the five roles
         return self
 
     @property

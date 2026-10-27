@@ -13,6 +13,7 @@ from app.contracts.account import Account, MonthlyBudget
 from app.contracts.agent import AgentResult
 from app.contracts.binding import AgentBinding
 from app.contracts.brief import Brief
+from app.contracts.enums import ORCHESTRATOR_ROLE, AgentRole
 from app.contracts.ledger import ChangeEntry, TokenUsage
 from app.contracts.llm import LLMRequest
 from app.contracts.loop import LoopDecision
@@ -202,6 +203,38 @@ def test_patch_op_requires_its_payload(op: str, payload: dict[str, str]) -> None
         PatchOp.model_validate({"op": op, **payload})
 
 
+@pytest.mark.parametrize(
+    ("op", "payload"),
+    [
+        ("insert_after", {"anchor": "for quality.", "text": " We measure it."}),
+        ("delete_text", {"old": "Delete this line.\n"}),
+    ],
+)
+def test_patch_op_keeps_payload_whitespace(op: str, payload: dict[str, str]) -> None:
+    """Whitespace is payload: a leading space and a trailing newline reach the applier.
+
+    ``PatchOp`` opts out of the base contract's ``str_strip_whitespace`` because both
+    shapes are real edits (splicing in " We measure it." and deleting a whole line,
+    line break included).
+    """
+    parsed = PatchOp.model_validate({"op": op, **payload})
+    for name, value in payload.items():
+        assert getattr(parsed, name) == value
+
+
+@pytest.mark.parametrize(
+    ("op", "payload"),
+    [
+        ("insert_after", {"anchor": "a", "text": ""}),
+        ("delete_text", {"old": ""}),
+    ],
+)
+def test_patch_op_still_rejects_an_empty_payload(op: str, payload: dict[str, str]) -> None:
+    """Turning off stripping did not weaken the non-empty rule."""
+    with pytest.raises(ValidationError):
+        PatchOp.model_validate({"op": op, **payload})
+
+
 def test_patch_op_rejects_foreign_payload_fields() -> None:
     """A replace_text that also carries text would apply two different edits."""
     with pytest.raises(ValidationError, match="must not carry"):
@@ -276,6 +309,40 @@ def test_change_entry_rejects_planner_as_an_author_role() -> None:
         ChangeEntry.model_validate({**PAYLOADS["ChangeEntry"], "role": "planner"})
 
 
+def test_change_entry_accepts_the_orchestrator_role() -> None:
+    """Rollbacks and emergency actions are recorded by the loop itself, not by an agent."""
+    entry = ChangeEntry.model_validate(
+        {**PAYLOADS["ChangeEntry"], "role": "orchestrator", "patch_ref": None}
+    )
+    assert entry.role == ORCHESTRATOR_ROLE
+    assert not isinstance(entry.role, AgentRole)
+    assert entry.is_orchestrator is True
+    assert entry.agent_role is None
+    assert entry.role_name == ORCHESTRATOR_ROLE
+    assert entry.model_dump(mode="json")["role"] == "orchestrator"
+
+
+def test_change_entry_normalises_agent_roles_to_the_enum() -> None:
+    """The five agent roles stay enum members; only the literal is a plain string."""
+    entry = ChangeEntry.model_validate({**PAYLOADS["ChangeEntry"], "role": " writer "})
+    assert entry.role is AgentRole.WRITER
+    assert entry.agent_role is AgentRole.WRITER
+    assert entry.is_orchestrator is False
+    assert entry.role_name == "writer"
+
+
+def test_change_entry_rejects_unknown_roles_and_names_the_allowed_set() -> None:
+    """The error lists every role an entry may carry, so a caller can fix the payload."""
+    with pytest.raises(ValidationError, match=ORCHESTRATOR_ROLE):
+        ChangeEntry.model_validate({**PAYLOADS["ChangeEntry"], "role": "orchestrator-ish"})
+
+
+def test_orchestrator_entries_never_carry_a_patch_ref() -> None:
+    """A rollback changes state; it never authors article text, so it has no patch."""
+    with pytest.raises(ValidationError, match="must not carry patch_ref"):
+        ChangeEntry.model_validate({**PAYLOADS["ChangeEntry"], "role": "orchestrator"})
+
+
 def test_change_entry_status_needs_user_input_is_reachable() -> None:
     """HARD RULE 1's escape hatch exists on the entry."""
     entry = ChangeEntry.model_validate(
@@ -319,6 +386,17 @@ def test_validator_result_with_report_is_accepted() -> None:
     result = AgentResult.model_validate(payload)
     assert result.report is not None
     assert result.report.Q == 67
+
+
+def test_agent_result_rejects_an_orchestrator_entry() -> None:
+    """An agent may not claim the loop's own role, not even for a rollback it suggests."""
+    payload = {
+        **PAYLOADS["AgentResult"],
+        "entry": {**PAYLOADS["ChangeEntry"], "role": "orchestrator", "patch_ref": None},
+        "patches": [],
+    }
+    with pytest.raises(ValidationError, match="cannot emit orchestrator entries"):
+        AgentResult.model_validate(payload)
 
 
 def test_agent_result_rejects_duplicate_source_cards() -> None:

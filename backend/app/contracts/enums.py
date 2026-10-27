@@ -8,8 +8,10 @@ CONTRACT-CHANGE-REQUEST: consumers switch exhaustively on these values.
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Final
 
 __all__ = [
+    "ORCHESTRATOR_ROLE",
     "AccountProvider",
     "AccountStatus",
     "AgentRole",
@@ -55,6 +57,14 @@ class AgentRole(StrEnum):
     WRITER = "writer"
     REVIEWER = "reviewer"
     VALIDATOR = "validator"
+
+
+#: The orchestrator's own ledger role (``ChangeEntry.role``). Deliberately *not* an
+#: ``AgentRole``: no Plan task is ever owned by the orchestrator and no agent may emit
+#: it. It exists so the loop can record actions it takes itself - rolling back to the
+#: best snapshot, an emergency stop or repair - without misattributing them to an agent.
+#: ``AgentRole`` itself stays closed at five members, so ``Task.role`` cannot widen.
+ORCHESTRATOR_ROLE: Final = "orchestrator"
 
 
 class BindingRole(StrEnum):

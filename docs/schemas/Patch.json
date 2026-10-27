@@ -2,7 +2,7 @@
   "$defs": {
     "PatchOp": {
       "additionalProperties": false,
-      "description": "A single edit. ``old`` is matched literally, so no regex escaping is needed.",
+      "description": "A single edit. ``old`` is matched literally, so no regex escaping is needed.\n\nWhitespace is payload, not formatting: an ``insert_after`` may legitimately splice\na leading space into the body (``\" for quality.\"``) and a ``delete_text`` may remove\na trailing newline (``\"delta [1].\\n\"``). So this one model turns off the base\nclass's ``str_strip_whitespace``: stripping here silently moved the edit by one\ncharacter and forced agents to anchor on the *previous* token to fake the gap.\n\nNothing else is relaxed. ``extra=\"forbid\"``, ``str_min_length=1`` and the per-op\npayload checks in :meth:`_check_payload` still run, so a missing or empty payload\nstays invalid.",
       "properties": {
         "anchor": {
           "anyOf": [

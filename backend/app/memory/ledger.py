@@ -229,10 +229,10 @@ class InMemoryLedger:
     for_iteration = by_iteration
 
     def by_role(self, role: AgentRole | str) -> list[ChangeEntry]:
-        """Entries authored by ``role``, in append order."""
+        """Entries authored by ``role``, in append order (``'orchestrator'`` works too)."""
         role_value = role.value if isinstance(role, AgentRole) else str(role)
         return [
-            entry.model_copy(deep=True) for entry in self._entries if entry.role.value == role_value
+            entry.model_copy(deep=True) for entry in self._entries if entry.role_name == role_value
         ]
 
     for_role = by_role
@@ -282,8 +282,17 @@ class InMemoryLedger:
 
     # -- derived metrics ---------------------------------------------------
     def completed_task_ids(self) -> set[str]:
-        """Task ids that have at least one ``status=ok`` ledger entry."""
-        return {entry.task_id for entry in self._entries if entry.status is ChangeStatus.OK}
+        """Task ids that have at least one ``status=ok`` *agent* entry.
+
+        Orchestrator entries are excluded: a rollback or emergency action can be
+        recorded as ``ok`` while touching a task's ``task_id``, and a task the loop
+        merely reported on has not been executed.
+        """
+        return {
+            entry.task_id
+            for entry in self._entries
+            if entry.status is ChangeStatus.OK and not entry.is_orchestrator
+        }
 
     def needs_user_input_entries(self) -> list[ChangeEntry]:
         """Entries that halted with ``status=needs_user_input`` (HARD RULE 1)."""
@@ -313,7 +322,7 @@ class InMemoryLedger:
             entry.tokens
             for entry in self._entries
             if (iteration is None or entry.iter == iteration)
-            and (role_value is None or entry.role.value == role_value)
+            and (role_value is None or entry.role_name == role_value)
         )
         return sum_token_usage(matching)
 

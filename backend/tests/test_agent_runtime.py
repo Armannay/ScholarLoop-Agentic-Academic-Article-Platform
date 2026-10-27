@@ -503,6 +503,23 @@ def test_output_schema_does_not_ask_the_model_to_compute_accounting() -> None:
     assert "entry" in schema["required"]
 
 
+def test_output_schema_does_not_offer_the_orchestrator_role() -> None:
+    """The constrained schema lists the five agent roles and nothing else.
+
+    The ledger accepts ``role='orchestrator'`` for the loop's own rollback/emergency
+    entries, but an agent that emitted it would be rejected by ``AgentResult`` and burn
+    a repair call, so the role the model is shown stays closed at five.
+    """
+    schema = agent_output_schema()
+    role_schema = schema["$defs"]["ChangeEntry"]["properties"]["role"]
+    # The property points straight at the five-member enum: no second branch for the
+    # orchestrator literal that the ledger union would otherwise export.
+    assert role_schema["$ref"] == "#/$defs/AgentRole"
+    assert "anyOf" not in role_schema
+    assert schema["$defs"]["AgentRole"]["enum"] == [role.value for role in AgentRole]
+    assert len(schema["$defs"]["AgentRole"]["enum"]) == 5
+
+
 async def test_model_claimed_accounting_is_replaced_by_measured_usage(
     repo_root: Path,
 ) -> None:

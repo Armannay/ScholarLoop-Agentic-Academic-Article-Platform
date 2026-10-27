@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from app.contracts.enums import AgentRole, ChangeStatus
-from app.contracts.ledger import ChangeEntry, TokenUsage, patch_ref_for
+from app.contracts.enums import ORCHESTRATOR_ROLE, AgentRole, ChangeStatus
+from app.contracts.ledger import ChangeEntry, EntryRole, TokenUsage, patch_ref_for
 from app.memory.errors import DuplicateEntryError, EntryNotFoundError, LedgerError
 from app.memory.ledger import InMemoryLedger, LedgerStore
 from tests.factories import sample_ulid
@@ -29,7 +29,7 @@ def make_entry(
     *,
     iteration: int = 1,
     task_seed: int | None = None,
-    role: AgentRole = AgentRole.WRITER,
+    role: EntryRole = AgentRole.WRITER,
     targets: list[str] | None = None,
     summary: str | None = None,
     status: ChangeStatus = ChangeStatus.OK,
@@ -155,6 +155,29 @@ def test_filters_by_iteration_role_task_target_and_status() -> None:
     assert [e.id for e in ledger.by_status(ChangeStatus.NEEDS_USER_INPUT)] == [e3.id]
     assert [e.id for e in ledger.needs_user_input_entries()] == [e3.id]
     assert ledger.completed_task_ids() == {sample_ulid(10), sample_ulid(11)}
+
+
+def test_orchestrator_entries_are_queryable_but_never_complete_a_task() -> None:
+    """A rollback is the loop's own action, not evidence that a task was executed."""
+    written = make_entry(1, iteration=1, task_seed=10, role=AgentRole.WRITER)
+    rollback = make_entry(
+        2,
+        iteration=1,
+        task_seed=11,
+        role=ORCHESTRATOR_ROLE,
+        status=ChangeStatus.OK,
+        tokens_in=0,
+        tokens_out=0,
+        tokens_cached=0,
+    )
+    ledger = InMemoryLedger([written, rollback])
+
+    assert [entry.id for entry in ledger.by_role(ORCHESTRATOR_ROLE)] == [rollback.id]
+    assert [entry.id for entry in ledger.by_role("orchestrator")] == [rollback.id]
+    assert rollback.role_name == ORCHESTRATOR_ROLE
+    assert ledger.total_tokens(role=ORCHESTRATOR_ROLE).total == 0
+    # Only the writer's task counts as completed.
+    assert ledger.completed_task_ids() == {sample_ulid(10)}
 
 
 def test_window_splits_older_and_recent_entries() -> None:

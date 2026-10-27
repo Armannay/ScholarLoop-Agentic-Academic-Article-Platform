@@ -23,8 +23,8 @@ from typing import Any, Final
 from pydantic import Field, ValidationError
 
 from app.contracts.common import Contract, IssueId, TargetRef, Ulid, word_count
-from app.contracts.enums import AgentRole, BindingRole, MessageRole
-from app.contracts.ledger import ChangeEntry, TokenUsage
+from app.contracts.enums import BindingRole, MessageRole
+from app.contracts.ledger import ChangeEntry, EntryRole, TokenUsage, role_name
 from app.contracts.llm import LLMMessage, LLMRequest, SystemBlock
 from app.memory.errors import CompactionError
 from app.memory.ledger import sum_token_usage
@@ -101,7 +101,7 @@ class CompactedBatch(Contract):
     entry_count: int = Field(ge=1)
     entry_ids: list[Ulid] = Field(min_length=1)
     task_ids: list[Ulid] = Field(min_length=1)
-    roles: list[AgentRole] = Field(min_length=1)
+    roles: list[EntryRole] = Field(min_length=1)
     statuses: dict[str, int] = Field(default_factory=dict)
     targets: list[TargetRef] = Field(default_factory=list)
     patch_refs: list[str] = Field(default_factory=list)
@@ -115,7 +115,7 @@ class CompactedBatch(Contract):
     def render(self, *, max_tokens: int | None = None) -> str:
         """Render the compacted block as markdown, honouring ``max_tokens`` if set."""
         status_str = ", ".join(f"{k}:{v}" for k, v in sorted(self.statuses.items()))
-        roles_str = ",".join(role.value for role in self.roles)
+        roles_str = ",".join(role_name(role) for role in self.roles)
         targets_str = ",".join(self.targets[:12]) or "none"
         if len(self.targets) > 12:
             targets_str += f",+{len(self.targets) - 12}"
@@ -180,10 +180,12 @@ def deterministic_compact(
     iter_end = max(entry.iter for entry in entries)
     entry_ids = _dedupe_preserve_order([entry.id for entry in entries])
     task_ids = _dedupe_preserve_order([entry.task_id for entry in entries])
-    roles = [
-        AgentRole(role_name)
-        for role_name in _dedupe_preserve_order([entry.role.value for entry in entries])
-    ]
+    roles: list[EntryRole] = []
+    for entry in entries:
+        # Orchestrator entries ("rollback", "emergency stop") compact like any other;
+        # only their role name is kept, never a patch body.
+        if entry.role not in roles:
+            roles.append(entry.role)
 
     statuses: dict[str, int] = {}
     for entry in entries:
@@ -206,7 +208,7 @@ def deterministic_compact(
     if prior_summary and prior_summary.strip():
         snippets.append(_truncate_words(prior_summary.strip(), 30))
     for entry in entries:
-        clause = f"[i{entry.iter} {entry.role.value}:{entry.status.value}] {entry.summary}"
+        clause = f"[i{entry.iter} {entry.role_name}:{entry.status.value}] {entry.summary}"
         snippets.append(_truncate_words(clause, 18))
 
     combined = _truncate_words(" ; ".join(snippets), max(8, max_summary_words))
@@ -287,7 +289,7 @@ class DigestCompactor:
             targets = ",".join(entry.targets) or "none"
             lines.append(
                 f"- id={entry.id} iter={entry.iter} task={entry.task_id} "
-                f"role={entry.role.value} status={entry.status.value} "
+                f"role={entry.role_name} status={entry.status.value} "
                 f"targets={targets} summary={entry.summary!r}"
             )
 

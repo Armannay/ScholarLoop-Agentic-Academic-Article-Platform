@@ -14,7 +14,7 @@
     },
     "ChangeEntry": {
       "additionalProperties": false,
-      "description": "One agent action, as recorded in the append-only ledger.",
+      "description": "One action, as recorded in the append-only ledger.\n\n``role`` names who produced the entry: one of the five agent roles, or\n``'orchestrator'`` for the actions the loop takes itself (rolling back to the best\nsnapshot, an emergency stop or repair). Agents may never emit the latter - see\n:class:`~app.contracts.agent.AgentResult`.",
       "properties": {
         "id": {
           "minLength": 1,
@@ -65,8 +65,17 @@
           "title": "Patch Ref"
         },
         "role": {
-          "$ref": "#/$defs/AgentRole",
-          "description": "The single role that produced the entry."
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRole"
+            },
+            {
+              "const": "orchestrator",
+              "type": "string"
+            }
+          ],
+          "description": "Who produced the entry: one of the five agent roles, or 'orchestrator' for a rollback or emergency action taken by the loop itself.",
+          "title": "Role"
         },
         "schema_version": {
           "const": 1,
@@ -226,7 +235,7 @@
     },
     "PatchOp": {
       "additionalProperties": false,
-      "description": "A single edit. ``old`` is matched literally, so no regex escaping is needed.",
+      "description": "A single edit. ``old`` is matched literally, so no regex escaping is needed.\n\nWhitespace is payload, not formatting: an ``insert_after`` may legitimately splice\na leading space into the body (``\" for quality.\"``) and a ``delete_text`` may remove\na trailing newline (``\"delta [1].\\n\"``). So this one model turns off the base\nclass's ``str_strip_whitespace``: stripping here silently moved the edit by one\ncharacter and forced agents to anchor on the *previous* token to fake the gap.\n\nNothing else is relaxed. ``extra=\"forbid\"``, ``str_min_length=1`` and the per-op\npayload checks in :meth:`_check_payload` still run, so a missing or empty payload\nstays invalid.",
       "properties": {
         "anchor": {
           "anyOf": [
