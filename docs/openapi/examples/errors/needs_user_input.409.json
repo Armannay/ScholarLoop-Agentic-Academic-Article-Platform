@@ -1,0 +1,18 @@
+{
+  "summary": "409 - intake needs fields only the user can supply",
+  "description": "Deterministic intake never invents a default. `context.missing_fields` names every gap, which is exactly what the console's 'fill in the blanks' dialog renders.",
+  "value": {
+    "error": {
+      "code": "needs_user_input",
+      "message": "intake needs user input: target_words, citation_style",
+      "context": {
+        "missing_fields": [
+          "target_words",
+          "citation_style"
+        ],
+        "problems": [],
+        "kind": "brief"
+      }
+    }
+  }
+}

@@ -1,0 +1,273 @@
+{
+  "summary": "200 - every error code this contract version can produce",
+  "description": "Twenty-four codes, sorted, each with its status, whether a retry can help, and the context keys it carries. A code outside this list means the server is newer than the client - the signal a version-mismatch banner needs.",
+  "value": {
+    "contract_version": 1,
+    "envelope": "{\"error\": {\"code\", \"message\", \"context\"}}",
+    "codes": [
+      {
+        "code": "auth_error",
+        "http_status": 401,
+        "retryable": false,
+        "summary": "Authentication is missing, malformed, expired, or the credentials are wrong.",
+        "context_keys": [],
+        "subclass_of": null
+      },
+      {
+        "code": "budget_exceeded",
+        "http_status": 429,
+        "retryable": false,
+        "summary": "A token or cost budget would be exceeded by the requested call or iteration.",
+        "context_keys": [
+          "cap",
+          "spent",
+          "requested"
+        ],
+        "subclass_of": null
+      },
+      {
+        "code": "config_error",
+        "http_status": 500,
+        "retryable": false,
+        "summary": "A configuration file or the master key is missing or invalid; /api/health names it.",
+        "context_keys": [
+          "file",
+          "stage"
+        ],
+        "subclass_of": null
+      },
+      {
+        "code": "conflict",
+        "http_status": 409,
+        "retryable": false,
+        "summary": "The request is well formed but conflicts with current state.",
+        "context_keys": [
+          "reason"
+        ],
+        "subclass_of": null
+      },
+      {
+        "code": "contract_violation",
+        "http_status": 422,
+        "retryable": false,
+        "summary": "A payload crossed a contract boundary in a shape the contract forbids.",
+        "context_keys": [
+          "field",
+          "detail"
+        ],
+        "subclass_of": null
+      },
+      {
+        "code": "invalid_transition",
+        "http_status": 409,
+        "retryable": false,
+        "summary": "A state-machine transition that the transition table forbids.",
+        "context_keys": [
+          "run_id",
+          "state",
+          "to"
+        ],
+        "subclass_of": "run_conflict"
+      },
+      {
+        "code": "needs_user_input",
+        "http_status": 409,
+        "retryable": false,
+        "summary": "The loop cannot proceed without information only a human has.",
+        "context_keys": [
+          "missing_fields",
+          "problems",
+          "kind"
+        ],
+        "subclass_of": null
+      },
+      {
+        "code": "no_account_available",
+        "http_status": 409,
+        "retryable": false,
+        "summary": "No usable account for the role: deleted, disabled, or over its own budget.",
+        "context_keys": [
+          "role",
+          "account_ids"
+        ],
+        "subclass_of": "provider_error"
+      },
+      {
+        "code": "not_found",
+        "http_status": 404,
+        "retryable": false,
+        "summary": "No such object, or it belongs to somebody else.",
+        "context_keys": [
+          "object",
+          "id"
+        ],
+        "subclass_of": null
+      },
+      {
+        "code": "orchestrator_error",
+        "http_status": 500,
+        "retryable": false,
+        "summary": "Base for run-orchestration failures that are not a conflict.",
+        "context_keys": [
+          "run_id"
+        ],
+        "subclass_of": null
+      },
+      {
+        "code": "policy_error",
+        "http_status": 500,
+        "retryable": false,
+        "summary": "config/policies.yaml (or a project override) failed validation.",
+        "context_keys": [
+          "file"
+        ],
+        "subclass_of": "config_error"
+      },
+      {
+        "code": "provider_auth_error",
+        "http_status": 401,
+        "retryable": false,
+        "summary": "The provider rejected the credential: revoked, missing scope, or wrong provider.",
+        "context_keys": [
+          "provider",
+          "model",
+          "status_code"
+        ],
+        "subclass_of": "provider_error"
+      },
+      {
+        "code": "provider_bad_response",
+        "http_status": 502,
+        "retryable": false,
+        "summary": "The provider answered with something unusable: malformed JSON or an empty body.",
+        "context_keys": [
+          "provider",
+          "model"
+        ],
+        "subclass_of": "provider_error"
+      },
+      {
+        "code": "provider_error",
+        "http_status": 502,
+        "retryable": false,
+        "summary": "Base for every provider-boundary failure.",
+        "context_keys": [
+          "provider",
+          "model",
+          "status_code",
+          "retry_after_s"
+        ],
+        "subclass_of": null
+      },
+      {
+        "code": "provider_quota_exceeded",
+        "http_status": 402,
+        "retryable": false,
+        "summary": "The account is out of money, not out of patience.",
+        "context_keys": [
+          "provider",
+          "model"
+        ],
+        "subclass_of": "provider_error"
+      },
+      {
+        "code": "provider_rate_limited",
+        "http_status": 429,
+        "retryable": true,
+        "summary": "Too many requests or out of quota for the window; retry after the delay.",
+        "context_keys": [
+          "provider",
+          "model",
+          "retry_after_s"
+        ],
+        "subclass_of": "provider_error"
+      },
+      {
+        "code": "provider_timeout",
+        "http_status": 504,
+        "retryable": true,
+        "summary": "The provider call exceeded its deadline.",
+        "context_keys": [
+          "provider",
+          "model"
+        ],
+        "subclass_of": "provider_error"
+      },
+      {
+        "code": "provider_unavailable",
+        "http_status": 503,
+        "retryable": true,
+        "summary": "The provider is unreachable or answered 5xx.",
+        "context_keys": [
+          "provider",
+          "model",
+          "status_code"
+        ],
+        "subclass_of": "provider_error"
+      },
+      {
+        "code": "provider_unsupported",
+        "http_status": 501,
+        "retryable": false,
+        "summary": "The adapter does not implement the requested feature (for example json_schema).",
+        "context_keys": [
+          "provider",
+          "model",
+          "feature"
+        ],
+        "subclass_of": "provider_error"
+      },
+      {
+        "code": "rubric_error",
+        "http_status": 500,
+        "retryable": false,
+        "summary": "config/rubric.yaml failed validation.",
+        "context_keys": [
+          "file"
+        ],
+        "subclass_of": "config_error"
+      },
+      {
+        "code": "run_conflict",
+        "http_status": 409,
+        "retryable": false,
+        "summary": "The run exists but is in a state that refuses this operation.",
+        "context_keys": [
+          "reason",
+          "run_id",
+          "state"
+        ],
+        "subclass_of": "conflict"
+      },
+      {
+        "code": "run_not_found",
+        "http_status": 404,
+        "retryable": false,
+        "summary": "No run with that id, or it belongs to another owner.",
+        "context_keys": [
+          "run_id"
+        ],
+        "subclass_of": "not_found"
+      },
+      {
+        "code": "scholarloop_error",
+        "http_status": 500,
+        "retryable": false,
+        "summary": "Catch-all base class; a payload with this code is a bug, not a user condition.",
+        "context_keys": [],
+        "subclass_of": null
+      },
+      {
+        "code": "validation_error",
+        "http_status": 422,
+        "retryable": false,
+        "summary": "The request body failed schema validation; the submitted value is never echoed.",
+        "context_keys": [
+          "errors",
+          "missing_fields"
+        ],
+        "subclass_of": null
+      }
+    ]
+  }
+}

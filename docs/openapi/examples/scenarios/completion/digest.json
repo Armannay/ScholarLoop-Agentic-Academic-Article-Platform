@@ -1,0 +1,15 @@
+{
+  "summary": "completion scenario - the digest at the checkpoint",
+  "description": "What the Planner was reading when it offered to finish.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "markdown": "# Run digest - peer-review-2026\n\n## Goal\nA research article on structured review checklists.\n\n## Decisions\n- iter 2: CONTINUE (q_below_min), Q=71\n- iter 3: OFFER_FINISH (completion_candidate, all_gates_pass), Q=78\n",
+    "tokens": 640,
+    "max_tokens": 2000,
+    "compacted": false,
+    "latest_q": 78,
+    "open_issues": [
+      "citation-unverified:src-gopen-1990"
+    ]
+  }
+}

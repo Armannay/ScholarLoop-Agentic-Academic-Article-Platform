@@ -1,0 +1,9 @@
+{
+  "summary": "200 - the authenticated caller",
+  "description": "The console calls this on boot to choose between the login screen and the project list.",
+  "value": {
+    "id": "01M5Z0X96Y0000000000000051",
+    "email": "ada@example.edu",
+    "created_at": "2026-09-14T08:02:11Z"
+  }
+}

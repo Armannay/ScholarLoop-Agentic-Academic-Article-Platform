@@ -1,0 +1,13 @@
+{
+  "summary": "create account request - the key is write-only",
+  "description": "`base_url` is required for openai_compatible and rejected for every other provider. The key is encrypted with the master key on the way in and never returned.",
+  "value": {
+    "provider": "anthropic",
+    "label": "Anthropic - research",
+    "api_key": "example-provider-key-not-a-real-credential",
+    "budget": {
+      "tokens": 2000000,
+      "usd": 40.0
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "scholarloop-openapi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OpenAPI 3.1 spec for the ScholarLoop UI: lint, Prism mock scenarios, typed TS client.",
+  "type": "module",
+  "scripts": {
+    "lint": "redocly lint openapi.yaml",
+    "verify": "node scripts/verify.mjs",
+    "check": "npm run lint && npm run verify && npm run client:check",
+    "mock": "node mock/server.mjs completion",
+    "mock:completion": "node mock/server.mjs completion",
+    "mock:erosion-stop": "node mock/server.mjs erosion-stop",
+    "mock:needs-input": "node mock/server.mjs needs-input",
+    "client": "openapi-typescript",
+    "client:check": "node scripts/client-check.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^2.71.2",
+    "@stoplight/prism-cli": "^5.16.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "~5.9.3",
+    "yaml": "^2.9.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "summary": "200 - where the tokens went",
+  "description": "`total` counts every provider call, planner included; `token_cap` already contains any add_budget grants, so the console's budget bar is `total / token_cap`.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "total": 59910,
+    "agents_total": {
+      "in": 39800,
+      "out": 15000,
+      "cached": 6600,
+      "total": 54800
+    },
+    "planner": {
+      "in": 3410,
+      "out": 1700,
+      "cached": 0,
+      "total": 5110
+    },
+    "by_role": {
+      "architect": {
+        "in": 4200,
+        "out": 1800,
+        "cached": 600,
+        "total": 6000
+      },
+      "researcher": {
+        "in": 6100,
+        "out": 2400,
+        "cached": 900,
+        "total": 8500
+      },
+      "reviewer": {
+        "in": 5400,
+        "out": 1900,
+        "cached": 400,
+        "total": 7300
+      },
+      "validator": {
+        "in": 3100,
+        "out": 1200,
+        "cached": 0,
+        "total": 4300
+      },
+      "writer": {
+        "in": 21000,
+        "out": 7700,
+        "cached": 4700,
+        "total": 28700
+      }
+    },
+    "by_iter": {
+      "0": {
+        "in": 10300,
+        "out": 4200,
+        "cached": 1500,
+        "total": 14500
+      },
+      "1": {
+        "in": 9800,
+        "out": 3600,
+        "cached": 2100,
+        "total": 13400
+      },
+      "2": {
+        "in": 11200,
+        "out": 4100,
+        "cached": 2600,
+        "total": 15300
+      },
+      "3": {
+        "in": 8500,
+        "out": 3100,
+        "cached": 400,
+        "total": 11600
+      }
+    },
+    "token_cap": 920000,
+    "iterations": 4,
+    "max_iterations": 14
+  }
+}

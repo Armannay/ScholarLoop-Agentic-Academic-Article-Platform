@@ -1,0 +1,13 @@
+{
+  "summary": "200 - the credential works",
+  "description": "One tiny call: reachability, model and latency. No key material is echoed.",
+  "value": {
+    "ok": true,
+    "account_id": "01M5Z0X96Y0000000000000071",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "latency_ms": 412,
+    "error_code": null,
+    "error_message": null
+  }
+}

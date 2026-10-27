@@ -1,0 +1,22 @@
+{
+  "summary": "422 - a needs_input answer arrived without the information asked for",
+  "description": "The checkpoint asked for a quote or a locator; the decision carried neither, so the body is incomplete rather than the state illegal. The console keeps the dialog open and shows which field is missing.",
+  "value": {
+    "error": {
+      "code": "validation_error",
+      "message": "body.note: Field required",
+      "context": {
+        "errors": [
+          {
+            "loc": "body.note",
+            "msg": "Field required",
+            "type": "missing"
+          }
+        ],
+        "missing_fields": [
+          "note"
+        ]
+      }
+    }
+  }
+}

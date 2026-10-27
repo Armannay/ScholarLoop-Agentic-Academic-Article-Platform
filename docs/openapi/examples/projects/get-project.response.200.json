@@ -1,0 +1,16 @@
+{
+  "summary": "200 - one project with its latest run",
+  "description": "Enough for the project header: name, run count, latest state and best Q.",
+  "value": {
+    "id": "peer-review-2026",
+    "name": "Peer review 2026",
+    "description": "A study of structured review checklists in a CS department.",
+    "run_count": 4,
+    "latest_run_id": "01M5Z0X96Y000000000000005H",
+    "latest_state": "CHECKPOINT",
+    "latest_q": 78,
+    "best_q": 78.0,
+    "created_at": "2026-10-24T11:20:00Z",
+    "updated_at": "2026-10-27T09:41:02Z"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "summary": "200 - one account",
+  "description": "Another owner's account answers 404 not_found, exactly like a missing one.",
+  "value": {
+    "id": "01M5Z0X96Y0000000000000071",
+    "owner_id": "01M5Z0X96Y0000000000000051",
+    "provider": "anthropic",
+    "label": "Anthropic - research",
+    "status": "active",
+    "base_url": null,
+    "key_fingerprint": "9f2c41ab7d3e",
+    "key_mask": "****c9f2",
+    "budget": {
+      "tokens": 2000000,
+      "usd": 40.0
+    },
+    "created_at": "2026-09-14T08:21:40Z",
+    "updated_at": "2026-10-20T12:04:55Z"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "summary": "erosion scenario - the Q=74 snapshot is the best one",
+  "description": "Four snapshots; the best one predates the plateau, which is why rollback is offered.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "best_snapshot_id": "01M5Z0X96Y0000000000000064",
+    "snapshots": [
+      {
+        "id": "01M5Z0X96Y0000000000000063",
+        "label": "iter-3-q72",
+        "q": 72.0,
+        "iter": 3,
+        "created_at": "2026-10-27T09:41:02Z",
+        "section_ids": [
+          "abstract",
+          "introduction",
+          "related-work",
+          "methodology",
+          "results",
+          "discussion",
+          "limitations",
+          "conclusion",
+          "references"
+        ],
+        "total_words": 862
+      },
+      {
+        "id": "01M5Z0X96Y0000000000000064",
+        "label": "iter-1-q74",
+        "q": 74.0,
+        "iter": 1,
+        "created_at": "2026-10-27T08:12:44Z",
+        "section_ids": [
+          "abstract",
+          "introduction",
+          "related-work",
+          "methodology",
+          "results",
+          "discussion",
+          "limitations",
+          "conclusion",
+          "references"
+        ],
+        "total_words": 801
+      },
+      {
+        "id": "01M5Z0X96Y0000000000000062",
+        "label": "iter-0-q72",
+        "q": 72.0,
+        "iter": 0,
+        "created_at": "2026-10-27T07:48:03Z",
+        "section_ids": [
+          "abstract",
+          "introduction",
+          "related-work",
+          "methodology",
+          "results",
+          "discussion",
+          "limitations",
+          "conclusion",
+          "references"
+        ],
+        "total_words": 722
+      }
+    ]
+  }
+}

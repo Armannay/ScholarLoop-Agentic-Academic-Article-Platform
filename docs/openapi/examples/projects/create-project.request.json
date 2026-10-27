@@ -1,0 +1,9 @@
+{
+  "summary": "create project request - reserve a label",
+  "description": "The label becomes the `project_id` in every run URL and cannot be changed later.",
+  "value": {
+    "id": "peer-review-2026",
+    "name": "Peer review 2026",
+    "description": "A study of structured review checklists in a CS department."
+  }
+}

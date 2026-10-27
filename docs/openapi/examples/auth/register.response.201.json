@@ -1,0 +1,13 @@
+{
+  "summary": "201 - the new user and its bearer token",
+  "description": "One round trip: the console can create its first project without calling login. `token_type` is always `bearer`.",
+  "value": {
+    "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMU01WjBYOTZZIn0.example-signature",
+    "token_type": "bearer",
+    "user": {
+      "id": "01M5Z0X96Y0000000000000051",
+      "email": "ada@example.edu",
+      "created_at": "2026-09-14T08:02:11Z"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "summary": "put binding request - create or replace",
+  "description": "`account_ids` is ordered: dedicated uses the first, failover walks the list, round_robin rotates. Token limits are per call, not per run.",
+  "value": {
+    "account_ids": [
+      "01M5Z0X96Y0000000000000071",
+      "01M5Z0X96Y0000000000000072"
+    ],
+    "strategy": "failover",
+    "model": "claude-sonnet-4-6",
+    "max_input_tokens": 24000,
+    "max_output_tokens": 8192,
+    "enabled": true
+  }
+}

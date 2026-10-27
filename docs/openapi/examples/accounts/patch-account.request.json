@@ -1,0 +1,12 @@
+{
+  "summary": "patch account request - rotate the key and raise the budget",
+  "description": "Every field is optional. An explicit null clears `base_url` or the budget; `api_key` may not be null - omit it to keep the current key.",
+  "value": {
+    "api_key": "example-rotated-key-not-a-real-credential",
+    "label": "Anthropic - research (rotated)",
+    "budget": {
+      "tokens": 3000000,
+      "usd": 60.0
+    }
+  }
+}

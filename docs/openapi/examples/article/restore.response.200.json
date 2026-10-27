@@ -1,0 +1,30 @@
+{
+  "summary": "200 - two sections restored, seven unchanged",
+  "description": "Restoring appends a new version for every section whose text differs from the snapshot; sections that already match are left alone and reported as unchanged. Nothing is rewritten, so the history stays a truthful record.",
+  "value": {
+    "run_id": "01M5Z0X96Y000000000000005H",
+    "snapshot_id": "01M5Z0X96Y0000000000000061",
+    "label": "iter-3-q78",
+    "q": 78.0,
+    "restored": [
+      "methodology",
+      "results"
+    ],
+    "unchanged": [
+      "abstract",
+      "introduction",
+      "related-work",
+      "discussion",
+      "limitations",
+      "conclusion",
+      "references"
+    ],
+    "versions": {
+      "methodology": 5,
+      "results": 4
+    },
+    "state": "CHECKPOINT",
+    "updated_at": "2026-10-27T09:47:31Z",
+    "dry_run": false
+  }
+}

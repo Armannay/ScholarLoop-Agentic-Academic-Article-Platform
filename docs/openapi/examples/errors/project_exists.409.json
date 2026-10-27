@@ -1,0 +1,14 @@
+{
+  "summary": "409 - the project label is already reserved",
+  "description": "Labels are unique per owner; the console offers to open the existing project instead.",
+  "value": {
+    "error": {
+      "code": "conflict",
+      "message": "project 'peer-review-2026' already exists",
+      "context": {
+        "reason": "project_exists",
+        "project_id": "peer-review-2026"
+      }
+    }
+  }
+}

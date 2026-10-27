@@ -1,0 +1,16 @@
+{
+  "summary": "200 - the writer binding",
+  "description": "Ids only: the account is resolved at call time, so rotating or disabling it between two tasks changes the very next call without rewriting the binding.",
+  "value": {
+    "role": "writer",
+    "account_ids": [
+      "01M5Z0X96Y0000000000000071"
+    ],
+    "strategy": "failover",
+    "model": "claude-sonnet-4-6",
+    "max_input_tokens": 24000,
+    "max_output_tokens": 8192,
+    "enabled": true,
+    "updated_at": "2026-10-20T12:06:31Z"
+  }
+}

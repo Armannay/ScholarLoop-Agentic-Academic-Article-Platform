@@ -1,0 +1,17 @@
+{
+  "summary": "200 - the stored binding",
+  "description": "The same shape as GET, with both accounts in failover order.",
+  "value": {
+    "role": "writer",
+    "account_ids": [
+      "01M5Z0X96Y0000000000000071",
+      "01M5Z0X96Y0000000000000072"
+    ],
+    "strategy": "failover",
+    "model": "claude-sonnet-4-6",
+    "max_input_tokens": 24000,
+    "max_output_tokens": 8192,
+    "enabled": true,
+    "updated_at": "2026-10-27T09:53:02Z"
+  }
+}

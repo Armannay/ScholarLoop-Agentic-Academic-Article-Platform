@@ -1,0 +1,98 @@
+{
+  "summary": "200 - effective policies plus the rubric summary",
+  "description": "The values the loop is actually obeying after defaults, policies.yaml and any project override are merged. The rubric summary is what the dashboard needs to render the gates and the weighted criteria without parsing YAML.",
+  "value": {
+    "contract_version": 1,
+    "policies_path": "config/policies.yaml",
+    "overrides_path": null,
+    "project": null,
+    "policies": {
+      "schema_version": 1,
+      "run_token_cap": 800000,
+      "iteration_token_cap": 120000,
+      "call_input_cap": 24000,
+      "max_iterations": 12,
+      "max_parallel": 3,
+      "digest_max_tokens": 2000,
+      "recent_window": 3,
+      "compact_trigger": 0.8,
+      "q_min": 70,
+      "plateau": {
+        "window": 3,
+        "min_gain": 1.0
+      },
+      "regression": {
+        "delta": 3,
+        "window": 2
+      },
+      "oscillation": {
+        "window": 4
+      },
+      "diminishing": {
+        "min_gain_per_10k": 0.2,
+        "window": 2
+      },
+      "issue_churn": 0.3,
+      "error_streak": 3,
+      "model_tiers": {
+        "planner": "strong",
+        "architect": "mid",
+        "researcher": "mid",
+        "writer": "mid",
+        "reviewer": "strong",
+        "validator": "cheap",
+        "compactor": "cheap"
+      }
+    },
+    "rubric": {
+      "article_types": {
+        "research": [
+          "introduction",
+          "related-work",
+          "methodology",
+          "results",
+          "discussion",
+          "limitations",
+          "conclusion",
+          "references"
+        ],
+        "review": [
+          "introduction",
+          "background",
+          "search-strategy",
+          "thematic-synthesis",
+          "discussion",
+          "limitations",
+          "conclusion",
+          "references"
+        ]
+      },
+      "gates": [
+        "required_sections_present",
+        "abstract_within_range",
+        "total_words_within_tolerance",
+        "citations_resolve_both_ways",
+        "references_verified_or_flagged",
+        "no_placeholders",
+        "citation_style_matches",
+        "referenced_figures_and_tables_exist"
+      ],
+      "criteria_weights": {
+        "contribution_and_gap": 15.0,
+        "coherence": 15.0,
+        "claims_supported": 20.0,
+        "methods_clarity": 10.0,
+        "results_match_claims": 10.0,
+        "literature_coverage": 10.0,
+        "language": 10.0,
+        "consistency": 5.0,
+        "limitations_and_ethics": 5.0
+      },
+      "weights_total": 100.0,
+      "abstract_word_range": {
+        "min": 150,
+        "max": 300
+      }
+    }
+  }
+}

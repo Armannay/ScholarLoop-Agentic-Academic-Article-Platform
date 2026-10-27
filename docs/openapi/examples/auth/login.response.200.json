@@ -1,0 +1,13 @@
+{
+  "summary": "200 - token plus the user it belongs to",
+  "description": "A wrong email and a wrong password both answer 401 auth_error; this is the success path.",
+  "value": {
+    "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMU01WjBYOTZZIn0.example-signature",
+    "token_type": "bearer",
+    "user": {
+      "id": "01M5Z0X96Y0000000000000051",
+      "email": "ada@example.edu",
+      "created_at": "2026-09-14T08:02:11Z"
+    }
+  }
+}

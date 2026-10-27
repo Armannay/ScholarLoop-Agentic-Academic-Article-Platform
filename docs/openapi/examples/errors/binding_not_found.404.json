@@ -1,0 +1,10 @@
+{
+  "summary": "404 - no binding for this role yet",
+  "description": "Shape caveat: this route raises a FastAPI HTTPException, so the body is `{detail: {code, message}}` rather than the standard envelope. The console unwraps both; normalising it is in CONTRACT-CHANGE-REQUESTS.",
+  "value": {
+    "detail": {
+      "code": "not_found",
+      "message": "no binding for role 'writer'"
+    }
+  }
+}

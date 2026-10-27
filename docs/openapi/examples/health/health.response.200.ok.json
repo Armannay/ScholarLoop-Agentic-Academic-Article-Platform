@@ -1,0 +1,20 @@
+{
+  "summary": "200 - everything loaded, mock provider only",
+  "description": "The happy path the console polls on boot. `providers.live_providers_enabled` is false here because no real adapter is implemented yet: the UI shows the mock badge and still allows runs.",
+  "value": {
+    "status": "ok",
+    "version": "0.9.0",
+    "contract_version": 1,
+    "env": "local",
+    "policies_loaded": true,
+    "rubric_loaded": true,
+    "providers": {
+      "mock": true,
+      "live_adapters_implemented": [],
+      "accounts_configured": 2,
+      "live_providers_enabled": false,
+      "account_store_ready": true
+    },
+    "config_errors": {}
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "summary": "register request - email and password",
+  "description": "The password is hashed with argon2 on the way in and never echoed back.",
+  "value": {
+    "email": "ada@example.edu",
+    "password": "correct-horse-battery"
+  }
+}

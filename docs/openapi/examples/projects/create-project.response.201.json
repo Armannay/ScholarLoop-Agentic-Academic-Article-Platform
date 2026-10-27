@@ -1,0 +1,16 @@
+{
+  "summary": "201 - the reserved project",
+  "description": "A freshly reserved project has no runs yet, so every derived field is null or zero.",
+  "value": {
+    "id": "peer-review-2026",
+    "name": "Peer review 2026",
+    "description": "A study of structured review checklists in a CS department.",
+    "run_count": 0,
+    "latest_run_id": null,
+    "latest_state": null,
+    "latest_q": null,
+    "best_q": null,
+    "created_at": "2026-10-24T11:20:00Z",
+    "updated_at": "2026-10-24T11:20:00Z"
+  }
+}

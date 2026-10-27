@@ -1,0 +1,44 @@
+# Redocly configuration for the ScholarLoop UI spec.
+# `npm run lint` (or `make openapi-check`) is the gate: the spec must validate with zero
+# errors and zero warnings, so a stale example cannot slip in.
+extends:
+  - recommended
+
+apis:
+  scholarloop-ui@v1:
+    root: ./openapi.yaml
+    # Where `openapi-typescript` writes when it is run with no arguments. Declared here so
+    # `npm run client` and `npm run lint` cannot disagree about which API they mean.
+    x-openapi-ts:
+      output: ./generated/api-schema.d.ts
+
+rules:
+  # Nothing is deployed yet: localhost is the dev API and "/" is the same-origin console.
+  no-server-example.com: off
+  # /api/health and /api/version cannot fail with 4xx: they answer before auth or config
+  # exist, which is the whole point of them. Every other operation has a 4xx, and
+  # `npm run verify` enforces exactly that rule (Redocly's version has no per-path
+  # exceptions, so it is turned off here and checked there instead).
+  operation-4xx-response: off
+  # CONTRACTS v1 schema names are PascalCase by design; path segments are plural nouns.
+  paths-kebab-case: off
+  info-license: off
+  spec-strict-refs: off
+  # Examples are validated against their schemas by `npm run verify` (ajv, draft 2020-12,
+  # including the external contract schemas); this flag keeps the linter focused on
+  # structure instead of running a second, weaker example check.
+  no-invalid-media-type-examples: off
+  # Everything else from `recommended` stays on, and these are raised to errors so the
+  # spec stays navigable: every operation needs an id, a summary, a description and a
+  # declared tag, and no component may be orphaned.
+  no-unused-components: error
+  operation-description: error
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-summary: error
+  operation-tag-defined: error
+  security-defined: error
+  tag-description: error
+  no-ambiguous-paths: error
+  no-identical-paths: error
+  no-path-trailing-slash: error

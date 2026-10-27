@@ -1,0 +1,19 @@
+{
+  "summary": "422 - structurally invalid body",
+  "description": "Field locations and messages, and never the submitted value: the handler strips it precisely so a rejected api_key cannot reappear in a response.",
+  "value": {
+    "error": {
+      "code": "validation_error",
+      "message": "body.brief.target_words: Input should be a valid integer",
+      "context": {
+        "errors": [
+          {
+            "loc": "body.brief.target_words",
+            "msg": "Input should be a valid integer",
+            "type": "int_parsing"
+          }
+        ]
+      }
+    }
+  }
+}

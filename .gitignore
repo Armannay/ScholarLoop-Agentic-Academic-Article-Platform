@@ -42,3 +42,9 @@ logs/
 .idea/
 .vscode/
 .DS_Store
+
+# --- docs/openapi build outputs (regenerate with `npm run client` in docs/openapi) ---
+docs/openapi/generated/
+docs/openapi/.scratch/
+# composed Prism documents: `node mock/server.mjs <scenario>` writes one per scenario
+docs/openapi/.mock.*.openapi.yaml
