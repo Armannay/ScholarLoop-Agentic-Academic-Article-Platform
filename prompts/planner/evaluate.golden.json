@@ -1,0 +1,24 @@
+{
+  "scores": {
+    "contribution_and_gap": 72,
+    "coherence": 66,
+    "claims_supported": 58,
+    "methods_clarity": 74,
+    "results_match_claims": 64,
+    "literature_coverage": 61,
+    "language": 80,
+    "consistency": 70,
+    "limitations_and_ethics": 52
+  },
+  "missing": [
+    "citations_resolve_both_ways: two in-text citations in discussion have no reference entry",
+    "limitations_and_ethics: the limitations section is empty, so no ethics or data-use constraint is acknowledged",
+    "references_verified_or_flagged: three source cards are still unverified with no open issue"
+  ],
+  "risks": [
+    "A reader would find the results section claims a general effect that the reported sample cannot support",
+    "The reference list mixes APA7 and IEEE entries, so the style gate will fail at completion"
+  ],
+  "meets_minimum": false,
+  "recommendation": "continue"
+}

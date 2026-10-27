@@ -56,6 +56,7 @@ backend/tests/ contracts, config, providers, accounts, memory, article, agents,
 config/        policies.yaml (loop knobs), rubric.yaml (gates, criteria, sections)
 rules/         root.rules.md + agents/<role>.rules.md   (<= 400 tokens each)
 skills/        <name>/SKILL.md prompt skills             (<= 400 tokens each, linted)
+prompts/       per-role prompt assets + golden answers; planner/ (<= 700 tokens)
 frontend/      React + Vite + TypeScript status console
 docs/          ARCHITECTURE.md, DECISIONS.md, schemas/
 ```
@@ -105,3 +106,19 @@ detail, optional skills, source-card notes) and refusing rather than cutting the
 `TierResolver` maps policies' tiers to model ids with per-binding override. Next: the
 concrete tools (Step 6), the five role agents (Step 7), the Planner, and the loop
 controller.
+
+Step 8 (planner) complete: `app/planner/` plans and evaluates and never writes article
+text. `PlanValidator` owns the mandatory distribution (one valid role per task, a DAG,
+acceptance criteria and a positive budget per task, at most 8 tasks, the summed budgets
+inside the remaining run budget, section ids that exist or are created by an earlier
+architect task, and no task for the Planner itself), and a rejected draft is retried at
+most twice with the validator's error list and nothing else. `probes.py` computes the 8
+hard gates deterministically and builds a compact article view (headings, per-section word
+and citation counts, first and last two sentences, <= 3 excerpts of <= 300 tokens; full
+text only on a user-opted deep check). `evaluation.py` merges the model's soft-criterion
+scores with those gates and can only ever make the verdict stricter - a failing gate means
+`meets_minimum=false` whatever the model says. `events.py` admits planner calls only at
+events (run start, empty queue, a newly failing gate, a completed milestone, the first
+plateau - which buys the one strategy change), at most once per iteration. Prompts live in
+`app/planner/prompts.py` under a 700-token ceiling with capped output and JSON-schema
+answers, mirrored in `prompts/planner/` and pinned by tests.

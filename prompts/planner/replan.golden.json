@@ -1,0 +1,20 @@
+{
+  "goal": null,
+  "added": [
+    {
+      "key": "T7",
+      "title": "Reconcile citation sites with the reference list",
+      "role": "reviewer",
+      "section_ids": ["discussion", "references"],
+      "instructions": "List every in-text marker with no reference entry and every entry with no marker, and open one issue per mismatch.",
+      "acceptance": [
+        "Every mismatch names both the section and the marker",
+        "No prose is rewritten and no source card is invented"
+      ],
+      "token_budget": 6000,
+      "depends_on": []
+    }
+  ],
+  "removed": [],
+  "reason": "Gate citations_resolve_both_ways has been failing for two iterations, so the next step reconciles citations before more drafting."
+}

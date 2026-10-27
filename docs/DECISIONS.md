@@ -62,3 +62,21 @@ Never edit a merged ADR: supersede it with a new one and link both ways.
 - **Decision:** One Pydantic v2 module per contract in `backend/app/contracts/`, `extra="forbid"`, `schema_version: Literal[1]` on documents, string ULIDs, UTC timestamps. `make schemas` exports JSON Schemas to `docs/schemas/`, and CI fails if the committed schemas drift from the models. Contract tests assert round-trip losslessness, unknown-field rejection and the registry's completeness.
 - **Alternatives:** JSON Schema as the source of truth (rejected: loses Python typing, so `mypy --strict` cannot help); protobuf/OpenAPI-first (rejected: heavy for a four-person build, and prompts want plain JSON Schema).
 - **Consequences:** one definition serves runtime validation, IDE autocompletion, documentation and the schemas handed to models. Cost: contract changes must be deliberate — a field rename is a breaking change that requires a CONTRACT-CHANGE-REQUEST and a re-export.
+
+## ADR-0006 — Pin every prompt asset to the code that sends it
+
+- **Status:** accepted
+- **Date:** 2026-10-27
+- **Context:** Prompt text is a deliverable *and* the largest fixed cost of a run: the planner system prompt is paid on every planner call. A prompt that exists only as a string constant is invisible in review, and a prompt that exists only as a document drifts from what is actually sent.
+- **Decision:** The prompt sent is the Python constant (`app/planner/prompts.py` for the planner, `ContextBuilder` for the agents). `prompts/<role>/` holds a byte-for-byte copy, the short call templates and a golden answer, and `backend/tests/test_planner_prompts.py` fails when a copy, a template's instruction line, a token ceiling or a golden answer stops matching the code.
+- **Alternatives:** load the prompt from the markdown file at runtime (rejected: a missing or edited file becomes a production failure, and the file is not type-checked); keep documentation only (rejected: it already drifted once - the planner directory did not exist); generate the markdown from the constant as a build step (rejected: one more artefact to keep out of review).
+- **Consequences:** A prompt change is a code change with a documentation diff and a test that states its budget. Cost: two files must be updated together, and the test is the only thing enforcing it.
+
+## ADR-0007 — The planner depends on a context-builder Protocol, not a concrete class
+
+- **Status:** accepted
+- **Date:** 2026-10-27
+- **Context:** The planner needs prompt layout, the trim order and token accounting, all of which belong to the governor's `ContextBuilder` (a prerequisite step). Importing that class directly would make the planner's public types depend on an implementation it does not own, and would make "swap the builder" a refactor of the planner.
+- **Decision:** `app/planner/context.py` declares `PlannerContextBuilder` - a `runtime_checkable` Protocol with the single `plan(task, run_state, *, max_input_tokens, max_output_tokens, json_schema) -> ContextPlan` method - and `PlannerContexts`/`PlannerPromptBuilder` are typed against it. The governor's `ContextBuilder` satisfies it structurally and no call site changed.
+- **Alternatives:** import the concrete `ContextBuilder` (rejected: couples the planner to the governor's class and its constructor); copy the layout into the planner (rejected: two trim orders, one prompt, and a second place to get token accounting wrong); an abstract base class (rejected: forces the governor to inherit from the planner, which inverts the dependency).
+- **Consequences:** A future builder - or a test double that returns a fixed `ContextPlan` - drops in without touching `service.py`, and `mypy --strict` checks the seam. Cost: the Protocol has to be kept in step with the builder's signature, which is checked at type-check time.

@@ -34,7 +34,7 @@ import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, Protocol, runtime_checkable
 
 from app.contracts.brief import Brief
 from app.contracts.enums import AgentRole, MessageRole
@@ -50,6 +50,7 @@ from app.governor.context_builder import (
     ContextBuilder,
     ContextPlan,
     ContextTooLarge,
+    GovernorRunState,
     RuleBundle,
 )
 from app.planner.budget import PlanBudget
@@ -67,6 +68,7 @@ __all__ = [
     "PLANNER_PROMPT_SLACK_TOKENS",
     "PLAN_INSTRUCTION",
     "REPLAN_INSTRUCTION",
+    "PlannerContextBuilder",
     "PlannerContexts",
     "PlannerPromptBuilder",
     "PlannerRequest",
@@ -213,14 +215,44 @@ def build_planner_contexts(
     return PlannerContexts(planning=planning, evaluation=evaluation)
 
 
+@runtime_checkable
+class PlannerContextBuilder(Protocol):
+    """The *one* method the Planner needs from a context builder.
+
+    The governor's :class:`~app.governor.context_builder.ContextBuilder` is a
+    prerequisite step, not a hard dependency of the planner: the seam is declared here as
+    a Protocol so the planner depends on behaviour ("assemble a measured
+    :class:`ContextPlan` for this task"), not on the concrete class. That is what lets a
+    later builder - or a test double that returns a fixed prompt - be dropped in without
+    touching :mod:`app.planner.service`, and it is checked structurally at type-check
+    time by ``mypy --strict``.
+    """
+
+    def plan(
+        self,
+        task: Task,
+        run_state: GovernorRunState,
+        *,
+        max_input_tokens: int | None = None,
+        max_output_tokens: int | None = None,
+        json_schema: dict[str, Any] | None = None,
+    ) -> ContextPlan:
+        """Assemble the prompt for ``task``, honouring the given ceilings."""
+        ...
+
+
 @dataclass(frozen=True)
 class PlannerContexts:
-    """The :class:`ContextBuilder` instances the Planner uses, by purpose."""
+    """The context builders the Planner uses, by purpose.
 
-    planning: ContextBuilder
-    evaluation: ContextBuilder
+    Typed against :class:`PlannerContextBuilder` rather than the concrete governor class,
+    so any conforming builder can be injected per purpose.
+    """
 
-    def for_kind(self, kind: str) -> ContextBuilder:
+    planning: PlannerContextBuilder
+    evaluation: PlannerContextBuilder
+
+    def for_kind(self, kind: str) -> PlannerContextBuilder:
         """The builder for a planner call kind (``plan``/``replan``/``evaluate``)."""
         return self.evaluation if kind == EVALUATE else self.planning
 
@@ -286,14 +318,16 @@ class PlannerPromptBuilder:
     """Turn a task and a run state into a planner-shaped, measured request.
 
     The class is a thin wrapper: every byte of layout, trimming and accounting comes from
-    the injected :class:`~app.governor.context_builder.ContextBuilder`.
+    the injected :class:`PlannerContextBuilder` (the governor's ``ContextBuilder`` in
+    production). The dependency is a Protocol, so the wrapper has no compile-time
+    coupling to that module's concrete class.
     """
 
-    def __init__(self, context_builder: ContextBuilder) -> None:
+    def __init__(self, context_builder: PlannerContextBuilder) -> None:
         self._context_builder = context_builder
 
     @property
-    def context_builder(self) -> ContextBuilder:
+    def context_builder(self) -> PlannerContextBuilder:
         """The wrapped builder, exposed so callers can share one instance per run."""
         return self._context_builder
 

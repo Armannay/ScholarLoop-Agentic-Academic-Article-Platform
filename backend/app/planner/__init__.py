@@ -22,7 +22,8 @@ Modules:
 * :mod:`app.planner.probes` - the 8 hard gates and the compact article view;
 * :mod:`app.planner.evaluation` - merging model judgement with deterministic gates;
 * :mod:`app.planner.events` - when a planner call is allowed at all;
-* :mod:`app.planner.context` - prompt assembly, the synthetic task, retry messages;
+* :mod:`app.planner.context` - prompt assembly (against a ``ContextBuilder`` Protocol),
+  the synthetic task and the retry message;
 * :mod:`app.planner.budget` - :class:`~app.planner.budget.PlanBudget`;
 * :mod:`app.planner.drafts` - the JSON shapes the model actually returns;
 * :mod:`app.planner.prompts` - prompt assets under a 700-token ceiling;
@@ -36,6 +37,7 @@ from app.planner.context import (
     EVALUATE_INSTRUCTION,
     PLAN_INSTRUCTION,
     REPLAN_INSTRUCTION,
+    PlannerContextBuilder,
     PlannerContexts,
     PlannerPromptBuilder,
     PlannerRequest,
@@ -139,6 +141,7 @@ __all__ = [
     "PlanValidator",
     "PlannerCall",
     "PlannerCallPolicy",
+    "PlannerContextBuilder",
     "PlannerContexts",
     "PlannerError",
     "PlannerEvent",
