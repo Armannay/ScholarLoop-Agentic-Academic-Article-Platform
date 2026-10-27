@@ -103,7 +103,7 @@ jobs:
       - run: docker compose config --quiet
 
   e2e:
-    name: frontend (Playwright smoke: project -> run -> checkpoint -> article)
+    name: frontend (Playwright smoke test)
     runs-on: ubuntu-latest
     defaults:
       run:
