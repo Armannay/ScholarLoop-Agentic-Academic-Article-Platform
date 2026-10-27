@@ -1,16 +1,20 @@
 {
   "name": "scholarloop-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "ScholarLoop UI: operator auth, encrypted provider accounts, role bindings, and status console.",
+  "description": "ScholarLoop console shell: router, layout, auth session, and typed API client against the OpenAPI spec.",
   "scripts": {
     "dev": "vite",
     "build": "npm run lint && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "esbuild src/__tests__/app.test.tsx --bundle --platform=node --format=esm --packages=external --loader:.css=empty --outfile=.vite/app.test.mjs && node --test .vite/app.test.mjs"
+    "api:gen": "openapi-typescript ../docs/openapi/openapi.yaml -o src/api/openapi.gen.d.ts",
+    "mock": "node ../docs/openapi/mock/server.mjs completion --port 4010",
+    "test": "esbuild src/__tests__/app.test.tsx --bundle --platform=node --format=esm --packages=external --loader:.css=empty --outfile=.vite/app.test.mjs && node --test .vite/app.test.mjs",
+    "playwright": "playwright test",
+    "playwright:install": "playwright install chromium"
   },
   "dependencies": {
     "react": "19.2.0",
@@ -21,6 +25,8 @@
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "@vitejs/plugin-react": "5.1.0",
+    "openapi-typescript": "^7.13.0",
+    "playwright": "^1.50.0",
     "typescript": "5.9.3",
     "vite": "7.2.2"
   }
