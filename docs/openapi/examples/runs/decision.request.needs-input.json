@@ -1,0 +1,9 @@
+{
+  "summary": "200 request - answer a needs_input checkpoint",
+  "description": "`note` carries the information the agent asked for (here a locator it may not invent). It reaches the Planner as user-supplied input; the orchestrator never pastes it into article text itself.",
+  "value": {
+    "option": "continue",
+    "note": "Braun 2006, p. 84 gives the coding procedure we paraphrased; the page number is verifiable in the print edition.",
+    "wait": false
+  }
+}

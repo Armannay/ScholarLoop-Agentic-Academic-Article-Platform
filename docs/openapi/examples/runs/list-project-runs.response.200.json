@@ -1,0 +1,48 @@
+{
+  "summary": "200 - every run of one project, newest first",
+  "description": "The list view carries state and cost only: no brief, no plan, no article. `total` allows paging without fetching the next page to find out whether there is one.",
+  "value": {
+    "runs": [
+      {
+        "id": "01M5Z0X96Y000000000000005H",
+        "project_id": "peer-review-2026",
+        "kind": "brief",
+        "state": "CHECKPOINT",
+        "iter": 3,
+        "best_q": 78,
+        "checkpoint_kind": "completion",
+        "running": false,
+        "tokens_spent": 59910,
+        "created_at": "2026-10-26T20:14:03Z",
+        "updated_at": "2026-10-27T09:41:02Z"
+      },
+      {
+        "id": "01M5Z0X96Y000000000000005J",
+        "project_id": "peer-review-2026",
+        "kind": "quick_edit",
+        "state": "DONE",
+        "iter": 1,
+        "best_q": null,
+        "checkpoint_kind": null,
+        "running": false,
+        "tokens_spent": 4180,
+        "created_at": "2026-10-26T18:02:44Z",
+        "updated_at": "2026-10-26T18:05:09Z"
+      },
+      {
+        "id": "01M5Z0X96Y000000000000005K",
+        "project_id": "peer-review-2026",
+        "kind": "brief",
+        "state": "STOPPED_BUDGET",
+        "iter": 6,
+        "best_q": 68,
+        "checkpoint_kind": null,
+        "running": false,
+        "tokens_spent": 812400,
+        "created_at": "2026-10-25T11:20:00Z",
+        "updated_at": "2026-10-25T16:44:31Z"
+      }
+    ],
+    "total": 3
+  }
+}

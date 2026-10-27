@@ -1,0 +1,6 @@
+summary: "run_stopped - a STOPPED_* state, and the stream closes"
+description: "A stop can arrive from the user, the erosion detectors, the budget or an error. `detail.action` says which, and the run stays revivable: only DONE is final."
+value: |
+  id: 8
+  event: run_stopped
+  data: {"seq":8,"ts":"2026-10-27T09:12:10Z","type":"run_stopped","state":"STOPPED_USER","iter":2,"detail":{"action":"STOP_USER","reasons":["user_requested_stop"],"Q":71,"best_snapshot_id":"01M5Z0X96Y0000000000000064","options":["continue_anyway","edit_goals","rollback"]}}

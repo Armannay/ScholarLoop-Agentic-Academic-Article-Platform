@@ -1,0 +1,44 @@
+{
+  "summary": "202 - the run is queued and already running in the background",
+  "description": "The response is a RunView in INTAKE with `running=true`: the console polls GET /api/runs/{run_id} or tails the SSE stream from here. `wait=true` would have run inline to the first checkpoint instead.",
+  "value": {
+    "id": "01M5Z0X96Y000000000000005H",
+    "project_id": "peer-review-2026",
+    "owner_id": "01M5Z0X96Y0000000000000051",
+    "kind": "brief",
+    "state": "INTAKE",
+    "iter": 0,
+    "brief": {
+      "schema_version": 1,
+      "topic": "Tightening peer review with structured checklists",
+      "article_type": "research",
+      "audience": "CS faculty and graduate reviewers",
+      "language": "en",
+      "target_words": 850,
+      "citation_style": "APA7",
+      "must_include": [
+        "a comparison of checklist and free-form reviews"
+      ],
+      "must_avoid": [
+        "claims about journal acceptance rates"
+      ],
+      "provided_data": []
+    },
+    "plan": null,
+    "goal_override": null,
+    "decisions": [],
+    "q_series": [],
+    "best_q": null,
+    "best_snapshot_id": null,
+    "stop_report": null,
+    "verdict": null,
+    "checkpoint_kind": null,
+    "on_complete": "ask",
+    "user_stop_requested": false,
+    "running": true,
+    "tokens_spent": 0,
+    "last_error": null,
+    "created_at": "2026-10-26T20:14:03Z",
+    "updated_at": "2026-10-26T20:14:03Z"
+  }
+}

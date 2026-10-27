@@ -1,0 +1,10 @@
+summary: "state_changed - INTAKE -> PLANNING -> EXECUTING"
+description: "Every transition is persisted before it is streamed, so a reconnect that replays from `id: 1` sees the same two frames and cannot miss a state. `detail.from` and `detail.to` are the authoritative pair."
+value: |
+  id: 1
+  event: state_changed
+  data: {"seq":1,"ts":"2026-10-26T20:14:04Z","type":"state_changed","state":"PLANNING","iter":0,"detail":{"from":"INTAKE","to":"PLANNING"}}
+  
+  id: 2
+  event: state_changed
+  data: {"seq":2,"ts":"2026-10-26T20:14:42Z","type":"state_changed","state":"EXECUTING","iter":0,"detail":{"from":"PLANNING","to":"EXECUTING"}}

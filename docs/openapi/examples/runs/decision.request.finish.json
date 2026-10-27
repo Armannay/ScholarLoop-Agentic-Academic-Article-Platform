@@ -1,0 +1,7 @@
+{
+  "summary": "200 request - accept the article",
+  "description": "The option the checkpoint published. The orchestrator refuses an option the StopReport did not offer (409 invalid_transition), so a client can render `options` blindly.",
+  "value": {
+    "option": "finish"
+  }
+}

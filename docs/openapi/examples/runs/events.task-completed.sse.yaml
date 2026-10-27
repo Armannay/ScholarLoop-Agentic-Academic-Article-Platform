@@ -1,0 +1,6 @@
+summary: "task_completed - one agent task finished and was applied"
+description: "The ledger entry, its patch and its token cost are already written when this frame is emitted. A client can therefore refresh the ledger on the event instead of polling for it."
+value: |
+  id: 4
+  event: task_completed
+  data: {"seq":4,"ts":"2026-10-26T20:38:11Z","type":"task_completed","state":"EXECUTING","iter":0,"detail":{"task_id":"01M5Z0X96Y000000000000006H","role":"architect","status":"ok","section_ids":["introduction","related-work"],"entry_id":"01M5Z0X96Y0000000000000080","patch_id":"01M5Z0X96Y000000000000007A","tokens":{"in":4200,"out":1800,"cached":600}}}
