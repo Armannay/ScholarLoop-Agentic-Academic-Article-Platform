@@ -26,6 +26,19 @@ describe('App shell navigation (projects -> run -> article)', () => {
     expect(await screen.findByText('Sign in to ScholarLoop')).toBeTruthy()
   })
 
+  it('labels the sign-in fields so they are reachable by name', async () => {
+    window.history.replaceState(null, '', '#/login')
+    render(<App />)
+    await screen.findByText('Sign in to ScholarLoop')
+    // `getByLabelText` is what a screen reader and a Playwright `getByLabel` use; it
+    // fails when a label is a sibling with no `htmlFor`, which is how the shell's login
+    // form shipped (found by the smoke test, fixed here, pinned here).
+    expect(screen.getByLabelText('Email')).toBeTruthy()
+    expect(screen.getByLabelText('Password')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /need an account\? register/i }))
+    expect(await screen.findByText('Create an account')).toBeTruthy()
+  })
+
   it('walks from the project list to the article viewer without losing the session', async () => {
     await signIn(server, 'walk@example.org')
     window.history.replaceState(null, '', '#/projects')
