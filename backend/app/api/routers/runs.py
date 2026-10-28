@@ -2,6 +2,8 @@
 
 Endpoints (all under the house ``/api`` prefix, all authenticated):
 
+* ``GET /api/projects/{project_id}/runs`` - the project's run history,
+  newest first, summaries only (no brief, no plan, no bodies).
 * ``POST /api/projects/{project_id}/runs`` - intake + start. Body carries
   either ``brief`` (a raw CONTRACTS v1 Brief object; intake names any
   missing fields with 409 ``needs_user_input``) or ``quick_edit`` (the
@@ -27,6 +29,9 @@ Endpoints (all under the house ``/api`` prefix, all authenticated):
   (``dry_run=true`` previews it; refuses while a wave is executing).
 * ``GET /api/runs/{id}/usage`` - token usage by role/iteration + planner.
 
+A project's run list is owner-scoped: another owner's runs are simply absent, and a
+label that neither exists as a stored project nor has a single run reads as 404.
+
 While a run of the same (owner, project) is live - executing or paused at a
 checkpoint - a second ``POST`` is refused with ``409 run_conflict`` and
 ``context.reason=active_run`` (the frozen OpenAPI design: one project, one
@@ -50,6 +55,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from datetime import datetime
+from enum import StrEnum
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Path, Query, Request, status
@@ -62,7 +68,14 @@ from app.agents.governor import CallBudgetGovernor
 from app.agents.pool import PoolAgentProvider
 from app.agents.registry import AgentRegistry
 from app.agents.roles.factory import register_role_agents
-from app.api.deps import CurrentUserDep, get_policies_dep, get_pool, get_rubric_dep
+from app.api.deps import (
+    CurrentUserDep,
+    ProjectServiceDep,
+    get_policies_dep,
+    get_pool,
+    get_rubric_dep,
+)
+from app.api.schemas import ErrorEnvelope, ValidationErrorEnvelope
 from app.contracts.brief import Brief
 from app.contracts.common import Contract, SectionId, Ulid
 from app.contracts.enums import SectionStatus
@@ -73,10 +86,16 @@ from app.contracts.quality import QualityReport
 from app.contracts.section import SectionState
 from app.contracts.source import SourceCard
 from app.contracts.verdict import Verdict
-from app.orchestrator.intake import QuickEditRequest
+from app.orchestrator.intake import IntakeKind, QuickEditRequest
 from app.orchestrator.persistence import FileRunStore, RunRecord
 from app.orchestrator.runner import Orchestrator, PlannerServiceAdapter, RunManager
-from app.orchestrator.state_machine import RUNNING_STATES, TERMINAL_STATES, RunEvent, RunStateName
+from app.orchestrator.state_machine import (
+    RUNNING_STATES,
+    TERMINAL_STATES,
+    CheckpointKind,
+    RunEvent,
+    RunStateName,
+)
 from app.orchestrator.stop import OnComplete, StopReport, UserDecision
 from app.planner.context import build_planner_contexts
 from app.planner.service import PlannerService
@@ -94,8 +113,31 @@ _PLANNER_MAX_OUTPUT_TOKENS = 4_096
 
 
 # --------------------------------------------------------------------------- schemas
+class RunKind(StrEnum):
+    """``RunView.kind`` / ``RunSummary.kind`` - the spec's ``RunKind``.
+
+    Spelled here rather than reusing the orchestrator's ``IntakeKind`` so the served
+    OpenAPI component carries the name a generated client expects (``RunKind``). The
+    two vocabularies are identical; :meth:`of` is the only conversion.
+    """
+
+    BRIEF = "brief"
+    QUICK_EDIT = "quick_edit"
+
+    @classmethod
+    def of(cls, kind: IntakeKind) -> RunKind:
+        """The wire spelling of an intake kind."""
+        return cls(kind.value)
+
+
 class RunCreate(Contract):
-    """POST /projects/{id}/runs. Exactly one of ``brief`` / ``quick_edit``."""
+    """POST /projects/{id}/runs. Exactly one of ``brief`` / ``quick_edit``.
+
+    ``brief`` is a plain JSON object rather than :class:`Brief` on purpose: intake
+    validates it field by field so a brief that is missing something only the user can
+    supply answers the spec's ``409 needs_user_input`` naming every gap - not a 422
+    that hides which field is missing.
+    """
 
     brief: dict[str, Any] | None = None
     quick_edit: QuickEditRequest | None = None
@@ -118,7 +160,7 @@ class RunView(Contract):
     id: Ulid
     project_id: str
     owner_id: str | None = None
-    kind: str
+    kind: RunKind
     state: RunStateName
     iter: int
     brief: Brief | None = None
@@ -130,7 +172,7 @@ class RunView(Contract):
     best_snapshot_id: str | None = None
     stop_report: StopReport | None = None
     verdict: Verdict | None = None
-    checkpoint_kind: str | None = None
+    checkpoint_kind: CheckpointKind | None = None
     on_complete: OnComplete = OnComplete.ASK
     user_stop_requested: bool = False
     running: bool = False
@@ -146,7 +188,7 @@ class RunView(Contract):
             id=record.id,
             project_id=record.project_id,
             owner_id=record.owner_id,
-            kind=record.kind.value,
+            kind=RunKind.of(record.kind),
             state=record.state,
             iter=record.iter,
             brief=record.brief,
@@ -158,9 +200,7 @@ class RunView(Contract):
             best_snapshot_id=record.best_snapshot_id,
             stop_report=record.stop_report,
             verdict=record.verdict,
-            checkpoint_kind=(
-                None if record.checkpoint_kind is None else record.checkpoint_kind.value
-            ),
+            checkpoint_kind=record.checkpoint_kind,
             on_complete=record.on_complete,
             user_stop_requested=record.user_stop_requested,
             running=running,
@@ -169,6 +209,52 @@ class RunView(Contract):
             created_at=record.created_at,
             updated_at=record.updated_at,
         )
+
+
+class RunSummary(Contract):
+    """One row of ``GET /projects/{id}/runs``.
+
+    State and cost only: no brief, no plan, no decisions, no bodies. The list is
+    what a project page polls, so it stays small even for a project with two
+    hundred runs. Deliberately *not* :class:`app.projects.runs.RunSummary` - that
+    one aggregates a project's runs for the project view; this one is one run.
+    """
+
+    id: Ulid
+    project_id: str
+    kind: RunKind
+    state: RunStateName
+    iter: int = Field(ge=0)
+    best_q: float | None = None
+    checkpoint_kind: CheckpointKind | None = None
+    running: bool = False
+    tokens_spent: int = Field(default=0, ge=0)
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_record(cls, record: RunRecord, *, running: bool) -> RunSummary:
+        """Project a persisted record onto one list row."""
+        return cls(
+            id=record.id,
+            project_id=record.project_id,
+            kind=RunKind.of(record.kind),
+            state=record.state,
+            iter=record.iter,
+            best_q=record.best_q,
+            checkpoint_kind=record.checkpoint_kind,
+            running=running,
+            tokens_spent=record.total_tokens_spent(),
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+
+class RunList(Contract):
+    """GET /projects/{id}/runs - the page plus the unpaged total."""
+
+    runs: list[RunSummary] = Field(default_factory=list)
+    total: int = Field(default=0, ge=0, description="Every run of this project, not just the page.")
 
 
 class LedgerView(Contract):
@@ -478,10 +564,108 @@ def _view(manager: RunManager, record: RunRecord) -> RunView:
     return RunView.from_record(record, running=manager.is_running(record.id))
 
 
+# --------------------------------------------------------------------------- responses
+#: Documented failure modes, mirroring the frozen ``docs/openapi/openapi.yaml``.
+#: The handlers in ``app.api.main`` emit these bodies at runtime; declaring them here
+#: makes the served ``/openapi.json`` tell a generated client the same story as the
+#: spec instead of stopping at "200 or FastAPI's own validation error".
+_UNAUTHORIZED: dict[int | str, dict[str, Any]] = {
+    401: {
+        "model": ErrorEnvelope,
+        "description": "Missing, malformed, expired or unknown bearer token.",
+    }
+}
+_RUN_NOT_FOUND: dict[int | str, dict[str, Any]] = {
+    404: {
+        "model": ErrorEnvelope,
+        "description": (
+            "No such run for this caller. Never 403 - the API does not confirm that a "
+            "foreign id exists."
+        ),
+    }
+}
+_NOT_FOUND: dict[int | str, dict[str, Any]] = {
+    404: {
+        "model": ErrorEnvelope,
+        "description": "No such object, or it belongs to somebody else.",
+    }
+}
+_CONFLICT: dict[int | str, dict[str, Any]] = {
+    409: {
+        "model": ErrorEnvelope,
+        "description": (
+            "Well-formed request the current state refuses; branch on "
+            "error.context.reason (invalid_transition, restore_while_running, ...)."
+        ),
+    }
+}
+_CREATE_CONFLICT: dict[int | str, dict[str, Any]] = {
+    409: {
+        "model": ErrorEnvelope,
+        "description": (
+            "Two conflicts share this status: needs_user_input when intake needs fields "
+            "only the user can supply, and run_conflict with context.reason=active_run "
+            "when the project already has a live run."
+        ),
+    }
+}
+_INVALID_BODY: dict[int | str, dict[str, Any]] = {
+    422: {
+        "model": ValidationErrorEnvelope,
+        "description": (
+            "A body field failed validation. Locations and messages are reported; the "
+            "submitted value is never echoed back."
+        ),
+    }
+}
+
+
 # --------------------------------------------------------------------------- endpoints
-#: The OpenAPI ``ProjectId`` path parameter: opaque owner-scoped slug.
-PROJECT_ID_PATTERN = "^[a-z0-9][a-z0-9-]{2,63}$"
+#: The OpenAPI ``ProjectId`` path parameter, plus the project table's ULID.
+#:
+#: The frozen spec (``components.parameters.ProjectId``) allows a lowercase slug,
+#: ``^[a-z0-9][a-z0-9-]{2,63}$``, because when it was written a project *was* an opaque
+#: label on a run. Step 11 added a real ``projects`` table whose ids are ULIDs (see its
+#: ``spec-change-requests.md`` #3: "``ProjectId`` should become a ULID"), and the
+#: console creates runs with ``project.id``. Accepting **both** is the only shape that
+#: keeps every spec-legal label working *and* makes a stored project addressable: it is
+#: a strict superset of the spec, so no request the spec allows is refused.
+PROJECT_ID_PATTERN = r"^(?:[a-z0-9][a-z0-9-]{2,63}|[0-7][0-9A-HJKMNP-TV-Z]{25})$"
 ProjectIdPath = Annotated[str, Path(pattern=PROJECT_ID_PATTERN)]
+
+
+@router.get(
+    "/projects/{project_id}/runs",
+    response_model=RunList,
+    summary="Runs of one project, newest first",
+    responses={**_UNAUTHORIZED, **_NOT_FOUND},
+)
+async def list_project_runs(
+    project_id: ProjectIdPath,
+    request: Request,
+    user: CurrentUserDep,
+    projects: ProjectServiceDep,
+    limit: int = Query(default=50, ge=1, le=200, description="Maximum runs to return."),
+) -> RunList:
+    """The run history of one project: summaries only, newest first.
+
+    A project is addressable when it exists as a stored project (Step 11) *or* has
+    at least one run - the opaque-label case the runs API has always supported, so a
+    pre-Step-11 project does not disappear from the console. Anything else, including
+    another owner's project, reads as 404 rather than an empty page that would confirm
+    the label exists.
+    """
+    manager = _manager_for(request, user.id)
+    records, total = manager.orchestrator.project_runs(project_id, owner_id=user.id, limit=limit)
+    if total == 0:
+        projects.get(user.id, project_id)  # 404 not_found when the project is unknown
+    return RunList(
+        runs=[
+            RunSummary.from_record(record, running=manager.is_running(record.id))
+            for record in records
+        ],
+        total=total,
+    )
 
 
 @router.post(
@@ -489,6 +673,7 @@ ProjectIdPath = Annotated[str, Path(pattern=PROJECT_ID_PATTERN)]
     response_model=RunView,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Create and start a run",
+    responses={**_UNAUTHORIZED, **_CREATE_CONFLICT, **_INVALID_BODY},
 )
 async def create_run(
     project_id: ProjectIdPath, payload: RunCreate, request: Request, user: CurrentUserDep
@@ -514,7 +699,12 @@ async def create_run(
     return _view(manager, record)
 
 
-@router.post("/runs/{run_id}/decision", response_model=RunView, summary="Answer a checkpoint")
+@router.post(
+    "/runs/{run_id}/decision",
+    response_model=RunView,
+    summary="Answer a checkpoint",
+    responses={**_UNAUTHORIZED, **_RUN_NOT_FOUND, **_CONFLICT, **_INVALID_BODY},
+)
 async def decide(
     run_id: str, payload: UserDecision, request: Request, user: CurrentUserDep
 ) -> RunView:
@@ -529,14 +719,24 @@ async def decide(
     return _view(manager, record)
 
 
-@router.post("/runs/{run_id}/stop", response_model=RunView, summary="Stop a run")
+@router.post(
+    "/runs/{run_id}/stop",
+    response_model=RunView,
+    summary="Stop a run",
+    responses={**_UNAUTHORIZED, **_RUN_NOT_FOUND},
+)
 async def stop_run(run_id: str, request: Request, user: CurrentUserDep) -> RunView:
     manager = _manager_for(request, user.id)
     record = await manager.orchestrator.request_stop(run_id, owner_id=user.id)
     return _view(manager, record)
 
 
-@router.get("/runs/{run_id}", response_model=RunView, summary="Run state")
+@router.get(
+    "/runs/{run_id}",
+    response_model=RunView,
+    summary="Run state",
+    responses={**_UNAUTHORIZED, **_RUN_NOT_FOUND},
+)
 async def get_run(run_id: str, request: Request, user: CurrentUserDep) -> RunView:
     manager = _manager_for(request, user.id)
     return _view(manager, manager.orchestrator.get_record(run_id, owner_id=user.id))
@@ -563,7 +763,11 @@ async def _event_stream(
             await asyncio.sleep(_SSE_POLL_SECONDS)
 
 
-@router.get("/runs/{run_id}/events", summary="Run events (SSE)")
+@router.get(
+    "/runs/{run_id}/events",
+    summary="Run events (SSE)",
+    responses={**_UNAUTHORIZED, **_RUN_NOT_FOUND},
+)
 async def run_events(
     run_id: str,
     request: Request,
@@ -585,6 +789,7 @@ async def run_events(
     "/runs/{run_id}/events/history",
     response_model=RunEventList,
     summary="Run events as JSON (the SSE log, without the stream)",
+    responses={**_UNAUTHORIZED, **_RUN_NOT_FOUND},
 )
 async def run_event_history(
     run_id: str,
@@ -597,7 +802,12 @@ async def run_event_history(
     return manager.orchestrator.events_page(run_id, after=after, limit=limit, owner_id=user.id)
 
 
-@router.get("/runs/{run_id}/digest", response_model=DigestView, summary="Bounded digest")
+@router.get(
+    "/runs/{run_id}/digest",
+    response_model=DigestView,
+    summary="Bounded digest",
+    responses={**_UNAUTHORIZED, **_RUN_NOT_FOUND},
+)
 async def get_digest(run_id: str, request: Request, user: CurrentUserDep) -> DigestView:
     manager = _manager_for(request, user.id)
     snapshot = await manager.orchestrator.digest_snapshot(run_id, owner_id=user.id)
@@ -612,7 +822,12 @@ async def get_digest(run_id: str, request: Request, user: CurrentUserDep) -> Dig
     )
 
 
-@router.get("/runs/{run_id}/ledger", response_model=LedgerView, summary="Change ledger")
+@router.get(
+    "/runs/{run_id}/ledger",
+    response_model=LedgerView,
+    summary="Change ledger",
+    responses={**_UNAUTHORIZED, **_RUN_NOT_FOUND},
+)
 async def get_ledger(run_id: str, request: Request, user: CurrentUserDep) -> LedgerView:
     manager = _manager_for(request, user.id)
     record = manager.orchestrator.get_record(run_id, owner_id=user.id)
@@ -623,13 +838,19 @@ async def get_ledger(run_id: str, request: Request, user: CurrentUserDep) -> Led
     "/runs/{run_id}/quality",
     response_model=QualityView,
     summary="Quality reports (gates, criteria scores, Q)",
+    responses={**_UNAUTHORIZED, **_RUN_NOT_FOUND},
 )
 async def get_quality(run_id: str, request: Request, user: CurrentUserDep) -> dict[str, Any]:
     manager = _manager_for(request, user.id)
     return manager.orchestrator.quality_view(run_id, owner_id=user.id)
 
 
-@router.get("/runs/{run_id}/article", response_model=ArticleView, summary="Assembled article")
+@router.get(
+    "/runs/{run_id}/article",
+    response_model=ArticleView,
+    summary="Assembled article",
+    responses={**_UNAUTHORIZED, **_RUN_NOT_FOUND},
+)
 async def get_article(run_id: str, request: Request, user: CurrentUserDep) -> dict[str, Any]:
     manager = _manager_for(request, user.id)
     data = await manager.orchestrator.article_data(run_id, owner_id=user.id)
@@ -640,6 +861,7 @@ async def get_article(run_id: str, request: Request, user: CurrentUserDep) -> di
     "/runs/{run_id}/article/sections/{section_id}/history",
     response_model=SectionHistoryView,
     summary="Version history of one section",
+    responses={**_UNAUTHORIZED, **_NOT_FOUND},
 )
 async def get_section_history(
     run_id: str, section_id: str, request: Request, user: CurrentUserDep
@@ -652,6 +874,7 @@ async def get_section_history(
     "/runs/{run_id}/article/sections/{section_id}/diff",
     response_model=SectionDiffView,
     summary="Diff between two versions of one section",
+    responses={**_UNAUTHORIZED, **_NOT_FOUND, **_CONFLICT},
 )
 async def get_section_diff(
     run_id: str,
@@ -671,6 +894,7 @@ async def get_section_diff(
     "/runs/{run_id}/article/snapshots",
     response_model=SnapshotList,
     summary="Whole-article snapshots",
+    responses={**_UNAUTHORIZED, **_RUN_NOT_FOUND},
 )
 async def list_snapshots(run_id: str, request: Request, user: CurrentUserDep) -> dict[str, Any]:
     manager = _manager_for(request, user.id)
@@ -681,6 +905,7 @@ async def list_snapshots(run_id: str, request: Request, user: CurrentUserDep) ->
     "/runs/{run_id}/article/restore",
     response_model=RestoreView,
     summary="Roll the article back to a snapshot",
+    responses={**_UNAUTHORIZED, **_NOT_FOUND, **_CONFLICT, **_INVALID_BODY},
 )
 async def restore_article(
     run_id: str, payload: RestoreRequest, request: Request, user: CurrentUserDep
@@ -691,7 +916,12 @@ async def restore_article(
     )
 
 
-@router.get("/runs/{run_id}/usage", response_model=RunUsageView, summary="Token usage")
+@router.get(
+    "/runs/{run_id}/usage",
+    response_model=RunUsageView,
+    summary="Token usage",
+    responses={**_UNAUTHORIZED, **_RUN_NOT_FOUND},
+)
 async def get_usage(run_id: str, request: Request, user: CurrentUserDep) -> dict[str, Any]:
     manager = _manager_for(request, user.id)
     return manager.orchestrator.usage_summary(run_id, owner_id=user.id)
