@@ -28,7 +28,10 @@ export function Home(): React.JSX.Element {
       <div className="panel-head">
         <h2>Console home</h2>
       </div>
-      <p className="subtitle">Shell step: router, layout, auth, API client. No feature pages yet.</p>
+      <p className="subtitle">
+        Projects own a Brief; every run is one attempt at the article, followed live over
+        Server-Sent Events and answered at its checkpoints.
+      </p>
       {error && <p className="mono bad">{error}</p>}
       {health ? (
         <>
@@ -67,6 +70,14 @@ export function Home(): React.JSX.Element {
       ) : (
         <p className="dim">loading…</p>
       )}
+      <div className="btn-row" style={{ marginTop: 12 }}>
+        <a className="btn btn-primary" href="#/projects">
+          Go to projects
+        </a>
+        <a className="btn" href="#/projects/new">
+          New project
+        </a>
+      </div>
     </section>
   )
 }

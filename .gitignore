@@ -51,3 +51,8 @@ docs/openapi/generated/
 docs/openapi/.scratch/
 # composed Prism documents: `node mock/server.mjs <scenario>` writes one per scenario
 docs/openapi/.mock.*.openapi.yaml
+
+# --- Generated typed API client (regenerate: cd frontend && npm run client) ---
+frontend/src/generated/
+frontend/test-results/
+frontend/playwright-report/

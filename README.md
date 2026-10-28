@@ -26,6 +26,8 @@ make run                # API on http://localhost:8000  (docs at /docs)
 
 make frontend-install   # npm ci in frontend/
 make frontend-dev       # UI  on http://localhost:5173 (proxies /api -> :8000)
+make frontend-check     # typecheck + vitest (jsdom) + production build
+make frontend-e2e       # Playwright smoke test (once: npx playwright install chromium)
 ```
 
 Docker: `make up` (backend :8000, frontend :5173), `make down`.
@@ -60,7 +62,12 @@ config/        policies.yaml (loop knobs), rubric.yaml (gates, criteria, section
 rules/         root.rules.md + agents/<role>.rules.md   (<= 400 tokens each)
 skills/        <name>/SKILL.md prompt skills             (<= 400 tokens each, linted)
 prompts/       per-role prompt assets + golden answers; planner/ (<= 700 tokens)
-frontend/      React + Vite + TypeScript status console
+frontend/      React + Vite + TypeScript console: router, layout, in-memory auth
+               session, shell components, generated OpenAPI client (api/), the
+               projects/briefs screens, run view (plan board, SSE change log, Q
+               chart, meters), checkpoint modal, stop report, article viewer with
+               history/diff/restore and .md export, plus the in-memory mock that
+               dev and tests run on. Vitest (jsdom) + Playwright.
 docs/          ARCHITECTURE.md, DECISIONS.md, schemas/
 ```
 
@@ -151,3 +158,20 @@ submitted value. PATCH and DELETE answer 409 `conflict` with
 the `RunsQuery` Protocol (in-memory fake for tests, `StoreRunsQuery` over the persisted
 run records in production); a `CHECKPOINT` run does not block an edit, because the
 loop is waiting for the user.
+
+Step 10b (console) complete — the feature screens on top of the console shell: **New
+project** (a Brief form with inline validation mirroring deterministic intake, and a
+`409 needs_user_input` turned into the same inline questions), **Run view** (state badge,
+plan board grouped by the role that owns each task, live change log over SSE, token /
+iteration / cost meters against the caps, Q-per-iteration chart with a chip per hard
+gate), **Checkpoint modal** (exactly `stop_report.options`: Finish, Continue with extra
+budget, Edit goals, Roll back; focus-trapped, Escape closes, `needs_input` opens itself),
+**Stop report** (reasons, Q series, best snapshot, spend, risks, failed gates, evidence),
+**Article viewer** (sections, per-section history, unified diff, snapshot restore as new
+versions, `dir=rtl` + `lang` for `fa`/`ar`) and **Export .md** (DOCX/PDF stay deferred and
+visibly disabled). Everything renders from the OpenAPI-generated client; the bearer token
+stays in memory and no key material is drawn anywhere. `make frontend-check` is the gate
+(tsc, 48 Vitest tests, Vite build); `make frontend-e2e` runs the Playwright smoke test of
+project -> run -> checkpoint -> article -> export against the in-memory mock
+(`VITE_API_MOCK=true`). This step also fixes a real bug in the shell's SSE hook: its
+`connect()` could never open a stream because the "closed" flag was never cleared.

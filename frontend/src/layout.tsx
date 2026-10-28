@@ -23,7 +23,9 @@ export function Layout({ children }: LayoutProps): React.JSX.Element {
       <header className="masthead">
         <div>
           <h1>ScholarLoop</h1>
-          <p className="tagline">Console shell · typed OpenAPI client · in-memory session</p>
+          <p className="tagline">
+            Projects · live runs · article viewer · typed OpenAPI client · in-memory session
+          </p>
         </div>
         <div className="masthead-status">
           {authLoading ? (
@@ -49,6 +51,15 @@ export function Layout({ children }: LayoutProps): React.JSX.Element {
         >
           Home
         </button>
+        {isAuthenticated && (
+          <button
+            type="button"
+            className={hash.startsWith('/projects') || hash.startsWith('/runs') ? 'nav-tab nav-tab-active' : 'nav-tab'}
+            onClick={() => navigate('/projects')}
+          >
+            Projects
+          </button>
+        )}
         {!isAuthenticated && (
           <button
             type="button"

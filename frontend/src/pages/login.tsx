@@ -39,8 +39,11 @@ export function Login(): React.JSX.Element {
         )}
         {error && <p className="notice notice-bad">{error}</p>}
         <div className="field">
-          <label className="field-label">Email</label>
+          <label className="field-label" htmlFor="login-email">
+            Email
+          </label>
           <input
+            id="login-email"
             type="email"
             autoComplete="email"
             required
@@ -49,8 +52,11 @@ export function Login(): React.JSX.Element {
           />
         </div>
         <div className="field">
-          <label className="field-label">Password</label>
+          <label className="field-label" htmlFor="login-password">
+            Password
+          </label>
           <input
+            id="login-password"
             type="password"
             autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
             minLength={10}

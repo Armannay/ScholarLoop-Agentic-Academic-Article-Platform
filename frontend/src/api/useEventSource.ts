@@ -119,7 +119,13 @@ export function useEventSource(
   failRef.current = fail
 
   const connect = useCallback((): void => {
-    if (closedRef.current || connectingRef.current || !url) return
+    // `closedRef` starts true (nothing is open yet) and `disconnect()` sets it back, so
+    // an explicit connect has to clear it - otherwise the guard below turns every
+    // connect into a no-op and the stream never opens. Found while wiring the run view's
+    // change log to this hook (Step 10b); the shell's own smoke test only asserted that
+    // the page rendered, which cannot see a stream that never connects.
+    if (connectingRef.current || !url) return
+    closedRef.current = false
     connectingRef.current = true
     setReadyState('connecting')
 

@@ -1,8 +1,15 @@
 import { useEffect, useState, type ReactElement } from 'react'
 
-export type Route = {
+export type RouteParams = Record<string, string>
+
+export interface Route {
   path: string
-  element: ReactElement
+  /**
+   * The screen. Either an element (static route) or a function of the path params, so a
+   * route like `/runs/:runId` can hand the id to the page without a second read of the
+   * hash.
+   */
+  element: ReactElement | ((params: RouteParams) => ReactElement)
 }
 
 const ROOT = '/'
@@ -15,6 +22,31 @@ function readHash(): string {
 
 function normalize(hash: string): string {
   return hash === '' || hash === '/' ? ROOT : hash
+}
+
+function segments(path: string): string[] {
+  return normalize(path).split('/').filter((part) => part !== '')
+}
+
+/**
+ * Match a route pattern against a path. Segments that start with `:` capture a value
+ * (URL-decoded), everything else must be equal.
+ */
+export function matchPath(pattern: string, path: string): RouteParams | null {
+  const want = segments(pattern)
+  const got = segments(path)
+  if (want.length !== got.length) return null
+  const params: RouteParams = {}
+  for (let index = 0; index < want.length; index += 1) {
+    const expected = want[index] as string
+    const actual = got[index] as string
+    if (expected.startsWith(':')) {
+      params[expected.slice(1)] = decodeURIComponent(actual)
+    } else if (expected !== actual) {
+      return null
+    }
+  }
+  return params
 }
 
 /**
@@ -34,7 +66,12 @@ export function useHash(): string {
   useEffect(() => {
     const onHashChange = (): void => setHash(readHash())
     window.addEventListener('hashchange', onHashChange)
-    return (): void => window.removeEventListener('hashchange', onHashChange)
+    const listener = (): void => setHash(readHash())
+    hashListeners.add(listener)
+    return (): void => {
+      window.removeEventListener('hashchange', onHashChange)
+      hashListeners.delete(listener)
+    }
   }, [])
 
   return hash
@@ -50,14 +87,19 @@ export function navigate(to: string): void {
 export function Router({ routes }: { routes: Route[] }): React.JSX.Element {
   const hash = useHash()
   const path = normalize(hash)
-  const route = routes.find((r) => normalize(r.path) === path)
-  if (!route) {
-    return (
-      <section className="panel panel-bad">
-        <h2>Not found</h2>
-        <p className="dim">There is no page at <code>#{hash}</code>.</p>
-      </section>
-    )
+
+  for (const route of routes) {
+    const params = matchPath(route.path, path)
+    if (!params) continue
+    return typeof route.element === 'function' ? route.element(params) : route.element
   }
-  return route.element
+
+  return (
+    <section className="panel panel-bad">
+      <h2>Not found</h2>
+      <p className="dim">
+        There is no page at <code>#{hash}</code>.
+      </p>
+    </section>
+  )
 }
