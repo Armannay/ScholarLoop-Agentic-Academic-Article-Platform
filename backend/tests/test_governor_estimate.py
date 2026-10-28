@@ -215,3 +215,18 @@ async def test_provider_count_is_used_for_the_whole_prompt_including_schema():
     estimate = await estimator.estimate(request)
 
     assert estimate.input_tokens == prompt_tokens(request)
+
+
+def test_suggested_margin_covers_worst_sample_not_aggregate():
+    estimator = TokenEstimator()
+    estimator.record(1_500, 1_000)
+    estimator.record(500, 1_000)
+    report = estimator.report()
+    assert report.drift_ratio == 1.0
+    assert report.suggested_margin == pytest.approx(1.0)
+
+
+def test_suggested_margin_for_zero_estimate_is_infinite():
+    estimator = TokenEstimator()
+    estimator.record(0, 100)
+    assert math.isinf(estimator.report().suggested_margin)
