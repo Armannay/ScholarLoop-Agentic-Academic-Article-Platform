@@ -1,9 +1,17 @@
 """Response models for the API. Contracts stay in ``app.contracts``; these describe
-the *surface* (health, config summaries) and never carry secrets."""
+the *surface* (health, config summaries) and never carry secrets.
+
+The error models at the bottom are the **documentation** twin of what
+:mod:`app.api.main` actually returns from its exception handlers
+(``{"error": {code, message, context}}``). They are referenced from each route's
+``responses=`` so the served ``/openapi.json`` declares the same status codes and
+payloads as the frozen ``docs/openapi/openapi.yaml``. The handlers themselves keep
+building plain dicts: an exception handler must never be able to fail on validation.
+"""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -12,9 +20,15 @@ from app.contracts.common import Contract, NonEmptyStr
 __all__ = [
     "ConfigResponse",
     "ContractListResponse",
+    "ErrorBody",
+    "ErrorEnvelope",
     "HealthResponse",
     "ProviderStatus",
     "RubricSummary",
+    "ValidationErrorBody",
+    "ValidationErrorContext",
+    "ValidationErrorEnvelope",
+    "ValidationFieldError",
 ]
 
 
@@ -71,3 +85,63 @@ class ContractListResponse(Contract):
     contract_version: int
     names: list[str]
     schema_url_template: str
+
+
+# --------------------------------------------------------------------------- errors
+class ErrorBody(Contract):
+    """The ``error`` object every expected failure carries.
+
+    Clients switch on ``code`` - never on ``message``, which is human prose and
+    may be reworded at any time.
+    """
+
+    code: str = Field(
+        min_length=1,
+        max_length=64,
+        description="Stable snake_case code; the closed set is documented per endpoint.",
+    )
+    message: str = Field(description="Human-readable, already redacted. Never parse this.")
+    context: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Machine-readable detail: missing_fields/problems for needs_user_input, "
+            "reason for conflict/run_conflict, errors for validation_error."
+        ),
+    )
+
+
+class ErrorEnvelope(Contract):
+    """The single error shape for every expected failure."""
+
+    error: ErrorBody
+
+
+class ValidationFieldError(Contract):
+    """One rejected field. The submitted value is never included."""
+
+    loc: str = Field(description="Dotted location, e.g. body.quote or query.limit.")
+    msg: str
+    type: str = Field(description="Pydantic error type, e.g. missing or greater_than_equal.")
+
+
+class ValidationErrorContext(Contract):
+    """What was wrong, field by field."""
+
+    errors: list[ValidationFieldError] = Field(default_factory=list)
+    missing_fields: list[str] | None = Field(
+        default=None, description="Present when the failure is a missing field, not a bad one."
+    )
+
+
+class ValidationErrorBody(Contract):
+    """The ``error`` object of a 422: the standard envelope with typed field errors."""
+
+    code: Literal["validation_error"] = "validation_error"
+    message: str
+    context: ValidationErrorContext
+
+
+class ValidationErrorEnvelope(Contract):
+    """422 body - the standard envelope with typed field errors."""
+
+    error: ValidationErrorBody

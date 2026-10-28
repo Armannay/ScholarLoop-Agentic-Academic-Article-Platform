@@ -360,6 +360,51 @@ class Orchestrator:
         record = self._store.load(run_id)
         return [event for event in record.events if event.seq > after_seq]
 
+    def project_runs(
+        self, project_id: str, *, owner_id: str | None = None, limit: int = 50
+    ) -> tuple[list[RunRecord], int]:
+        """Newest-first run records of one (owner, project), plus the unpaged total.
+
+        The read model behind ``GET /api/projects/{project_id}/runs``. It answers
+        from persisted records only, so listing can never start, revive or mutate a
+        run. ``total`` counts every matching record rather than the page, so the
+        console can render "3 of 12" without a second request.
+
+        Ordering is ``created_at`` descending, with the id as a deterministic
+        tie-break (ULIDs are time-ordered, so equal timestamps stay stable).
+        ``owner_id=None`` is the internal "every owner" call; the API always passes
+        the caller, so a foreign project's runs are simply not there - not hidden
+        behind a 403.
+        """
+        matching = [
+            record
+            for record in self._readable_records()
+            if record.project_id == project_id and (owner_id is None or record.owner_id == owner_id)
+        ]
+        matching.sort(key=lambda record: (record.created_at, record.id), reverse=True)
+        return matching[: max(limit, 0)], len(matching)
+
+    def _readable_records(self) -> list[RunRecord]:
+        """Every readable record in the store.
+
+        One corrupt file must not blind every other read (a half-written record
+        from a killed process is a fact of life, not a reason to fail the list),
+        so it is skipped with a warning - exactly like the one-live-run guard.
+        """
+        records: list[RunRecord] = []
+        for run_id in self._store.list_ids():
+            try:
+                record = self._store.get(run_id)
+            except RunStoreError:
+                logger.warning(
+                    "skipping unreadable run record during a store scan",
+                    extra={"run_id": run_id},
+                )
+                continue
+            if record is not None:
+                records.append(record)
+        return records
+
     # -- creation -------------------------------------------------------------
     def _live_run_for(self, project_id: str, owner_id: str | None) -> RunRecord | None:
         """The live run of this (owner, project) pair, if one exists.

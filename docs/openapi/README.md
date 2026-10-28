@@ -153,23 +153,23 @@ console (`planned`).
 
 | tag | endpoint | status |
 | --- | --- | --- |
-| projects | `GET/POST /api/projects` | planned |
-| projects | `GET /api/projects/{project_id}` | planned |
-| projects | `GET /api/projects/{project_id}/runs` | planned |
+| projects | `GET/POST /api/projects` | implemented |
+| projects | `GET /api/projects/{project_id}` | implemented |
+| projects | `GET /api/projects/{project_id}/runs` | implemented |
 | runs | `POST /api/projects/{project_id}/runs` | implemented |
 | runs | `GET /api/runs/{run_id}` | implemented |
 | runs | `POST /api/runs/{run_id}/decision` | implemented |
 | runs | `POST /api/runs/{run_id}/stop` | implemented |
 | runs | `GET /api/runs/{run_id}/events` (SSE) | implemented |
-| runs | `GET /api/runs/{run_id}/events/history` | planned |
+| runs | `GET /api/runs/{run_id}/events/history` | implemented |
 | runs | `GET /api/runs/{run_id}/digest` | implemented |
 | runs | `GET /api/runs/{run_id}/ledger` | implemented |
-| runs | `GET /api/runs/{run_id}/quality` | planned |
+| runs | `GET /api/runs/{run_id}/quality` | implemented |
 | article | `GET /api/runs/{run_id}/article` | implemented |
-| article | `GET /api/runs/{run_id}/article/sections/{section_id}/history` | planned |
-| article | `GET /api/runs/{run_id}/article/sections/{section_id}/diff` | planned |
-| article | `GET /api/runs/{run_id}/article/snapshots` | planned |
-| article | `POST /api/runs/{run_id}/article/restore` | planned |
+| article | `GET /api/runs/{run_id}/article/sections/{section_id}/history` | implemented |
+| article | `GET /api/runs/{run_id}/article/sections/{section_id}/diff` | implemented |
+| article | `GET /api/runs/{run_id}/article/snapshots` | implemented |
+| article | `POST /api/runs/{run_id}/article/restore` | implemented |
 | usage | `GET /api/runs/{run_id}/usage` | implemented |
 | errors | `GET /api/errors/catalog` | planned |
 | auth | `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me` | implemented |
@@ -177,6 +177,15 @@ console (`planned`).
 | config | `GET /api/config`, `GET /api/contracts`, `GET /api/contracts/{name}/schema` | implemented |
 | accounts | `GET/POST /api/accounts`, `GET/PATCH/DELETE /api/accounts/{account_id}`, `POST …/test` | implemented |
 | bindings | `GET/PUT /api/agents/{role}/binding` | implemented |
+
+**Note on `x-scholarloop-status`.** The spec is frozen, so the per-operation status
+strings inside `openapi.yaml` are frozen with it; the table above tracks what the
+router actually serves. Everything in the Runs/Article block is served today and
+`backend/tests/test_openapi_conformance.py` fails the build if the served
+`/openapi.json` and this spec disagree on a path, parameter, status code or payload
+field. `docs/arena-log/step-13/` records the remaining metadata follow-ups
+(`x-scholarloop-status: planned` on operations that are now implemented, the projects
+tag, and `GET /api/errors/catalog`, which is still not wired).
 
 **Note on the endpoint list.** The task that produced this spec referred to an
 "endpoint list above" that did not survive into the prompt. Rather than invent one, the

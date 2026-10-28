@@ -1,0 +1,43 @@
+# coverage gate (the CI step from main) - 2026-10-28T18:09:29Z
+
+$ coverage run --source=backend/app/orchestrator,backend/app/governor,backend/app/memory -m pytest -q
+1186 passed, 8 skipped, 1 warning in 39.16s
+
+$ coverage report --include="backend/app/orchestrator/*" --fail-under=80
+Name                                          Stmts   Miss  Cover
+-----------------------------------------------------------------
+backend/app/orchestrator/__init__.py             10      0   100%
+backend/app/orchestrator/errors.py               18      0   100%
+backend/app/orchestrator/intake.py              108      7    94%
+backend/app/orchestrator/loop_controller.py     289      7    98%
+backend/app/orchestrator/persistence.py         174      8    95%
+backend/app/orchestrator/runner.py              776     98    87%
+backend/app/orchestrator/scheduler.py           169     11    93%
+backend/app/orchestrator/state_machine.py        80      1    99%
+backend/app/orchestrator/stop.py                 61      0   100%
+-----------------------------------------------------------------
+TOTAL                                          1685    132    92%
+
+$ coverage report --include="backend/app/governor/*" --fail-under=80
+Name                                      Stmts   Miss  Cover
+-------------------------------------------------------------
+backend/app/governor/__init__.py              7      0   100%
+backend/app/governor/budget.py              418     36    91%
+backend/app/governor/context_builder.py     338     13    96%
+backend/app/governor/estimate.py            152      7    95%
+backend/app/governor/telemetry.py           211     20    91%
+backend/app/governor/tiers.py                88      5    94%
+-------------------------------------------------------------
+TOTAL                                      1214     81    93%
+
+$ coverage report --include="backend/app/memory/*" --fail-under=80
+Name                              Stmts   Miss  Cover
+-----------------------------------------------------
+backend/app/memory/__init__.py        7      0   100%
+backend/app/memory/compactor.py     156      7    96%
+backend/app/memory/digest.py        317     16    95%
+backend/app/memory/errors.py         36      0   100%
+backend/app/memory/ledger.py        213     10    95%
+backend/app/memory/sources.py       162      7    96%
+-----------------------------------------------------
+TOTAL                               891     40    96%
