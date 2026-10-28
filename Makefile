@@ -6,7 +6,7 @@ PIP   := $(VENV)/bin/pip
 
 .DEFAULT_GOAL := help
 
-.PHONY: help venv install lint format type test check skill-lint schemas schemas-check openapi-install openapi-check openapi-mock openapi-client migrate migration run backend frontend-install frontend-build frontend-dev frontend-test frontend-check frontend-e2e dev up down clean
+.PHONY: help venv install lint format type test check benchmark skill-lint schemas schemas-check openapi-install openapi-check openapi-mock openapi-client migrate migration run backend frontend-install frontend-build frontend-dev frontend-test frontend-check frontend-e2e dev up down clean
 
 help: ## show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -36,6 +36,9 @@ test: ## pytest (MockProvider only - never live APIs)
 
 skill-lint: ## validate skills/ front matter and token budgets
 	$(PY) -m app.skills.lint --skills-dir skills
+
+benchmark: ## run the token benchmark and rewrite docs/benchmarks/token-benchmark.md
+	$(PY) benchmarks/token_benchmark.py
 
 check: lint type skill-lint test ## the gate every step must pass
 
