@@ -15,13 +15,6 @@ export function formatCompact(value: number | null | undefined): string {
   return String(Math.round(value))
 }
 
-export function formatUsd(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return '—'
-  if (value >= 100) return `$${value.toFixed(2)}`
-  if (value >= 1) return `$${value.toFixed(3)}`
-  return `$${value.toFixed(4)}`
-}
-
 export function formatPercent(part: number, whole: number): string {
   if (!Number.isFinite(part) || !Number.isFinite(whole) || whole <= 0) return '—'
   return `${Math.round((part / whole) * 100)}%`

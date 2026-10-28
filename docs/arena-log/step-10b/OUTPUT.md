@@ -265,3 +265,14 @@ the new screens render already exists in CONTRACTS v1 (`Brief`, `Task`, `Plan`,
 * The mock's SSE endpoint replays the log and closes, so the client reconnects (with
   backoff and de-duplication). The real backend tails live and closes when the run
   settles; the hook handles both, but only the reconnect path is exercised in tests.
+
+## Follow-up — cost visibility correction (2026-10-28)
+
+The merged UI's USD rate table and token-cap-equivalent denominator were not backed by
+CONTRACTS, OpenAPI or policy data. This follow-up removes those calculations and shows
+cost as **Unavailable** in the run meters and stop report until the API reports billed
+USD and a USD limit. Token and iteration meters remain based on API-reported values;
+role breakdowns show tokens only. Contracts and the API spec remain untouched; the
+future request for `usd_spent` / `usd_cap` is still recorded in
+[`spec-change-requests.md`](spec-change-requests.md). This follow-up also retains the
+Vite 7.3.7 security update unique to PR #30.

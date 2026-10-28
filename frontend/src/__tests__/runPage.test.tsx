@@ -46,15 +46,17 @@ describe('RunPage (state badge, plan board, SSE change log, meters, Q chart)', (
     expect(container.querySelectorAll('.chart-dot').length).toBe(4)
     expect(container.querySelectorAll('.gate-chip-ok').length).toBe(8)
 
-    // Token and cost meters with real caps.
+    // Token and iteration meters have API-reported caps; cost is unavailable without
+    // contract-backed billed-USD and USD-limit fields.
     const tokens = await screen.findByRole('progressbar', { name: 'Tokens' })
     const tokensNow = Number(tokens.getAttribute('aria-valuenow'))
     expect(tokensNow).toBeGreaterThan(0)
     expect(tokensNow).toBeLessThan(100) // 59,910 of a 920,000 cap
     expect(screen.getByRole('progressbar', { name: 'Iterations' })).toBeTruthy()
-    const cost = screen.getByRole('progressbar', { name: 'Est. cost' })
-    expect(cost.getAttribute('aria-valuetext')).toMatch(/% of cap/)
-    expect(screen.getByText(/no USD cap in policies/i)).toBeTruthy()
+    const cost = screen.getByRole('status', { name: 'Cost reporting' })
+    expect(cost.textContent).toContain('Unavailable')
+    expect(cost.textContent).toMatch(/API does not report billed USD or a USD limit/)
+    expect(screen.queryByRole('progressbar', { name: /cost/i })).toBeNull()
   })
 
   it('streams the change log over SSE and shows the ledger audit trail', async () => {
@@ -136,6 +138,9 @@ describe('RunPage (state badge, plan board, SSE change log, meters, Q chart)', (
     expect(await screen.findByText('Evidence (4 keys)')).toBeTruthy()
     expect(screen.getAllByText('plateau_detected').length).toBeGreaterThan(0)
     expect(container.querySelector('.reason-list')).toBeTruthy()
+    expect(container.querySelector('.kv')?.textContent).toMatch(
+      /CostUnavailable — the API does not report billed USD or a USD limit/,
+    )
     // A stopped run offers the erosion options, not Finish.
     fireEvent.click(screen.getByRole('button', { name: /review checkpoint/i }))
     const dialog = await screen.findByRole('dialog')

@@ -62,7 +62,8 @@ test.describe('ScholarLoop Step 10b smoke', () => {
       page.getByText('Draft the section outline and the contribution statement'),
     ).toBeVisible()
     await expect(page.getByRole('progressbar', { name: 'Tokens' })).toBeVisible()
-    await expect(page.getByRole('progressbar', { name: 'Est. cost' })).toBeVisible()
+    await expect(page.getByRole('status', { name: 'Cost reporting' })).toContainText('Unavailable')
+    await expect(page.getByRole('progressbar', { name: /cost/i })).toHaveCount(0)
     await expect(page.getByText('run_created').first()).toBeVisible()
     await expect(page.locator('.gate-chip')).toHaveCount(8)
 

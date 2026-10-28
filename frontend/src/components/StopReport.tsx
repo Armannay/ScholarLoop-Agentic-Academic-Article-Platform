@@ -1,5 +1,4 @@
-import { formatInt, formatTimestamp, formatUsd, gateLabel, runStateLabel } from '../lib/format'
-import { estimateCostUsd } from '../lib/costs'
+import { formatInt, formatTimestamp, gateLabel, runStateLabel } from '../lib/format'
 import type { QualityView, RunUsageView, RunView } from '../lib/domain'
 
 export interface StopReportProps {
@@ -32,8 +31,8 @@ function evidenceRows(evidence: Record<string, unknown>): Array<[string, string]
  *
  * Everything here comes from the run's `stop_report` (or, at a checkpoint, from the
  * same report plus the latest quality view): reasons, Q series, best snapshot, token
- * spend, the verdict's risks and the failed gates. No number is recomputed from a
- * guess except the USD estimate, which is labelled as such.
+ * spend, the verdict's risks and the failed gates. No monetary amount is inferred
+ * from token usage; cost is reported unavailable until the API supplies billed USD.
  */
 export function StopReport({ run, quality, usage, onOpenCheckpoint }: StopReportProps): React.JSX.Element {
   const report = run.stop_report
@@ -90,9 +89,9 @@ export function StopReport({ run, quality, usage, onOpenCheckpoint }: StopReport
             </span>
           ) : null}
         </dd>
-        <dt>Est. cost</dt>
-        <dd className="mono">
-          {usage ? formatUsd(estimateCostUsd(usage.agents_total) + estimateCostUsd(usage.planner)) : '—'}
+        <dt>Cost</dt>
+        <dd className="small dim">
+          Unavailable — the API does not report billed USD or a USD limit.
         </dd>
         <dt>Options offered</dt>
         <dd className="mono small">{report.options.join(', ') || 'none'}</dd>
