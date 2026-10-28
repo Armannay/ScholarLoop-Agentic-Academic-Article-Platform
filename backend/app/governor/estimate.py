@@ -160,7 +160,12 @@ class DriftReport:
     @property
     def suggested_margin(self) -> float:
         """Smallest uniform margin that would have covered every sample in the window."""
-        return max(0.0, 1.0 / self.drift_ratio - 1.0) if self.drift_ratio else 0.0
+        worst = self.worst_under_estimate
+        if worst is None:
+            return 0.0
+        if worst.estimate == 0:
+            return math.inf
+        return worst.actual / worst.estimate - 1.0
 
     @property
     def never_under_estimated(self) -> bool:

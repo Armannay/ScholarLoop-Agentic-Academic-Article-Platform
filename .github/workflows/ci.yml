@@ -47,8 +47,12 @@ jobs:
       - name: skill lint (front matter + token ceilings)
         run: python -m app.skills.lint --skills-dir skills
 
-      - name: pytest (MockProvider only - no live API calls)
-        run: python -m pytest -q
+      - name: pytest and per-package coverage (MockProvider only)
+        run: |
+          coverage run --source=backend/app/orchestrator,backend/app/governor,backend/app/memory -m pytest -q
+          for package in orchestrator governor memory; do
+            coverage report --include="backend/app/$package/*" --fail-under=80
+          done
 
       - name: contract schemas are in sync with docs/schemas
         run: python -m app.scripts.export_schemas --out docs/schemas --check
