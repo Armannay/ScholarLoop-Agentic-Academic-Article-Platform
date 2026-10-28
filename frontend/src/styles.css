@@ -329,6 +329,8 @@ textarea:focus { outline: none; border-color: var(--accent); }
 .meter-bad span { background: var(--bad); }
 .meter-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 .usage-split { margin-top: 8px; }
+.cost-unavailable { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+.cost-unavailable p { margin: 3px 0 0; }
 
 /* quality chart */
 .chart-wrap { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }

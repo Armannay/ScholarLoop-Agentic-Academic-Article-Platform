@@ -52,16 +52,17 @@ spec should pin while wiring:
 * `GET .../diff` defaults to `from = to - 1`, which the version-history table relies on for
   its "vs prev" column.
 
-## 6. `RunUsageView` needs money, or the console keeps estimating
+## 6. `RunUsageView` reports tokens, not monetary values
 
-There is a `token_cap` and a `max_iterations`, but no USD figure and no USD cap, and
-`config/policies.yaml` has no spend ceiling. The Step 10b cost meter therefore multiplies
-the reported tokens by a documented rate table (`frontend/src/costs.ts`) and measures
-against the *USD equivalent of the token cap*, with that sentence on screen.
+There is a `token_cap` and a `max_iterations`, but no billed-USD figure or USD cap, and
+`config/policies.yaml` has no spend ceiling. An earlier Step 10b UI derived dollar
+estimates from an uncontracted rate table and a token-cap equivalent. That estimate path
+was removed in the 2026-10-28 follow-up; the UI now explicitly reports cost as
+unavailable and shows token usage by role only.
 
 Request: add `usd_spent: number` and `usd_cap: number | null` to `RunUsageView` (and a
-`usd_cap` knob to policies). The meter then shows a real ceiling instead of an estimate,
-and the label "no USD cap in policies v1" disappears.
+`usd_cap` knob to policies). Until those values are provided by the API, do not infer
+monetary amounts from token counts.
 
 ## 7. (resolved) the console keeps no second copy of the spec
 
